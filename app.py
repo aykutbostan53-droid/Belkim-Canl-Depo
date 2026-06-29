@@ -101,7 +101,7 @@ def logout():
     st.session_state.active_menu = "m1"
     st.rerun()
 
-# --- CRITICAL FIX: GİRİŞ KONTROLÜ EN ÜSTTE VE TAM İZOLE ---
+# --- GİRİŞ KONTROLÜ (FORM DÜZELTİLDİ) ---
 if not st.session_state.logged_in:
     st.set_page_config(page_title="Giriş - Canlı Depo", layout="centered")
     st.title("🏭 Canlı Depo Yönetim Sistemi")
@@ -110,3 +110,75 @@ if not st.session_state.logged_in:
     with st.form("kesin_giris_formu_blok"):
         username_input = st.text_input("Kullanıcı Adı")
         password_input = st.text_input("Şifre", type="password")
+        # FIX: Hatalı st.button yerine st.form_submit_button getirildi
+        submit_login = st.form_submit_button("Giriş Yap", use_container_width=True)
+        
+        if submit_login:
+            login(username_input, password_input)
+    st.stop()
+
+# --- ANA UYGULAMA ARAYÜZÜ ---
+st.set_page_config(page_title="Canlı Depo Yönetim Sistemi", layout="wide")
+
+col_title, col_user = st.columns([4, 1])
+with col_title:
+    st.title("🏭 Canlı Depo ve Hammadde Takip Sistemi")
+with col_user:
+    st.write(f"👤 Giriş Yapan: **{st.session_state.user_display_name}**")
+    if st.button("Çıkış Yap"):
+        logout()
+
+st.write("---")
+
+if st.session_state.basari_mesaji:
+    st.success(st.session_state.basari_mesaji)
+    st.session_state.basari_mesaji = None
+if st.session_state.uyari_mesaji:
+    st.warning(st.session_state.uyari_mesaji)
+    st.session_state.uyari_mesaji = None
+
+# --- SOL MENÜ BUTONLARI ---
+st.sidebar.header("⚙️ Depo İşlemleri")
+
+if st.sidebar.button("🔍 Arama & Sorgulama", use_container_width=True):
+    st.session_state.active_menu = "m1"
+    st.rerun()
+
+if st.sidebar.button("📥 Stok Ekle / Güncelle", use_container_width=True):
+    st.session_state.active_menu = "m2"
+    st.rerun()
+
+if st.sidebar.button("📤 Stok Çıkar / Azalt / Sil", use_container_width=True):
+    st.session_state.active_menu = "m3"
+    st.rerun()
+
+if st.sidebar.button("➕ Yeni Raf Tanımla", use_container_width=True):
+    st.session_state.active_menu = "m4"
+    st.rerun()
+
+if st.sidebar.button("👥 Kullanıcı Yönetimi", use_container_width=True):
+    st.session_state.active_menu = "m5"
+    st.rerun()
+
+if st.sidebar.button("📊 Tüm Depo Durumu", use_container_width=True):
+    st.session_state.active_menu = "m6"
+    st.rerun()
+
+if st.sidebar.button("📜 Depo Hareket Geçmişi", use_container_width=True):
+    st.session_state.active_menu = "m7"
+    st.rerun()
+
+# --- SAYFA İÇERİKLERİ ---
+
+# 1. ARAMA & SORGULAMA
+if st.session_state.active_menu == "m1":
+    st.header("🔍 Hammadde veya Raf Ara")
+    arama_turu = st.radio("Arama Yöntemi:", ["Hammaddeye Göre Ara", "Rafa Göre Ara"])
+
+    if arama_turu == "Hammaddeye Göre Ara":
+        arama_kelimesi = st.text_input("Aranacak Hammadde Adı:").strip().upper()
+        if arama_kelimesi:
+            bulundu = False
+            sonuclar = []
+            for raf, icerik in depo.items():
+                if isinstance(icerik, dict) and arama_kelimesi in ic
