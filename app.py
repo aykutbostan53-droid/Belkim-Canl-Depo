@@ -6,10 +6,6 @@ from datetime import datetime
 # --- VERİ TABANI AYARLARI ---
 DB_FILE = "depo_verisi.json"
 
-# LOGO URL ADRESLERİ
-BELKIM_LOGO = "https://www.belkim.com.tr/assets/images/logo.png"
-MARATEM_LOGO = "https://www.maratem.com.tr/assets/images/logo.png"
-
 # Excel'den gelen tüm raf adresleri
 EXCEL_RAFLARI = [
     "A111", "A112", "A113", "A121", "A122", "A123", "A131", "A132", "A133",
@@ -28,41 +24,6 @@ EXCEL_RAFLARI = [
     "C511", "C512", "C513", "C521", "C522", "C523", "C531", "C532", "C533",
     "D111", "D112", "D113", "D121"
 ]
-
-# --- SIFIR KURULUM VE TEMA ENJEKSİYONU ---
-st.set_page_config(page_title="Canlı Depo Yönetim Sistemi", layout="wide")
-
-# Sistemi zorunlu olarak LIGHT (AÇIK) moda geçiren ve logoları hizalayan CSS tasarımı
-st.markdown("""
-    <style>
-    /* Açık arka plan ve temiz fontlar */
-    .stApp {
-        background-color: #F8F9FA !important;
-        color: #212529 !important;
-    }
-    /* Menü alanı arka plan rengi */
-    [data-testid="stSidebar"] {
-        background-color: #FFFFFF !important;
-        border-right: 1px solid #E9ECEF;
-    }
-    /* Başlık stilleri */
-    h1, h2, h3 {
-        color: #1E3A8A !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-    /* Logo container */
-    .logo-container {
-        display: flex;
-        justify-content: center;
-        gap: 40px;
-        margin-bottom: 25px;
-        background-color: white;
-        padding: 15px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-    }
-    </style>
-""", unsafe_allow_html=True)
 
 def veri_yukle():
     if os.path.exists(DB_FILE):
@@ -144,44 +105,11 @@ def logout():
 
 # --- GİRİŞ EKRANI ARAYÜZÜ ---
 if not st.session_state.logged_in:
-    # Giriş ekranında kurumsal logoları yan yana gösterelim
-    st.markdown(f"""
-        <div class="logo-container">
-            <img src="{BELKIM_LOGO}" height="50">
-            <img src="{MARATEM_LOGO}" height="50">
-        </div>
-    """, unsafe_allow_html=True)
-    
+    st.set_page_config(page_title="Giriş - Canlı Depo", layout="centered")
     st.title("🏭 Canlı Depo Yönetim Sistemi")
     st.subheader("Lütfen Giriş Yapın")
     
     username = st.text_input("Kullanıcı Adı")
     password = st.text_input("Şifre", type="password")
     
-    if st.button("Giriş Yap", use_container_width=True):
-        login(username, password)
-    st.stop()
-
-# --- ANA UYGULAMA ARAYÜZÜ ---
-# Sol yan menünün (sidebar) en üstüne logoları ekleyelim
-st.sidebar.image([BELKIM_LOGO, MARATEM_LOGO], width=120)
-st.sidebar.write("---")
-
-col_title, col_user = st.columns([4, 1])
-with col_title:
-    st.title("🏭 Canlı Depo ve Hammadde Takip Sistemi")
-with col_user:
-    st.write(f"👤 Giriş Yapan: **{st.session_state.user_display_name}**")
-    if st.button("Çıkış Yap"):
-        logout()
-
-st.write("---")
-
-if st.session_state.basari_mesaji:
-    st.success(st.session_state.basari_mesaji)
-    st.session_state.basari_mesaji = None
-if st.session_state.uyari_mesaji:
-    st.warning(st.session_state.uyari_mesaji)
-    st.session_state.uyari_mesaji = None
-
-# --- MENÜ SEÇENEKLER
+    if st.button("Giriş Yap", use
