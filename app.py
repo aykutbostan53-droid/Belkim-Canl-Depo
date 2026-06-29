@@ -183,7 +183,7 @@ if st.session_state.active_menu == "m1":
                         for k_key, detay in icerik[arama_kelimesi].items():
                             sonuclar.append({
                                 "Raf Adresi": raf,
-                                "Miktar (kg)": detay.get("miktar", 0),
+                                "Miktar (kg)": detay.get("miktar", 0.0),
                                 "LOT No": detay.get("lot", "Girilmedi"),
                                 "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
                             })
@@ -203,7 +203,7 @@ if st.session_state.active_menu == "m1":
                     for k_key, detay in veriler.items():
                         raf_icerik.append({
                             "Hammadde": hammadde,
-                            "Miktar (kg)": detay.get("miktar", 0),
+                            "Miktar (kg)": detay.get("miktar", 0.0),
                             "LOT No": detay.get("lot", "Girilmedi"),
                             "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
                         })
@@ -227,7 +227,7 @@ elif st.session_state.active_menu == "m2":
                 for k_key, detay in veriler.items():
                     mevcut_icerik.append({
                         "Hammadde": hmd,
-                        "Miktar (kg)": detay.get("miktar", 0),
+                        "Miktar (kg)": detay.get("miktar", 0.0),
                         "LOT No": detay.get("lot", "Girilmedi"),
                         "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
                     })
@@ -238,7 +238,8 @@ elif st.session_state.active_menu == "m2":
     st.write("---")
 
     hammadde_adi = st.text_input("Giriş Yapılacak Hammadde Adı:").strip().upper()
-    miktar = st.number_input("Eklenecek Miktar (kg):", min_value=1, step=1)
+    # Giriş miktarını da ondalıklı (float) yapabilmek için min_value ve step ayarlandı
+    miktar = st.number_input("Eklenecek Miktar (kg):", min_value=0.01, step=0.1, format="%.2f")
     
     lot_opsiyon = st.checkbox("LOT Numarası Girmek İstiyorum")
     lot_no = "Girilmedi"
@@ -273,7 +274,7 @@ elif st.session_state.active_menu == "m2":
         else:
             st.error("Lütfen hammadde adı girin.")
 
-# 3. STOK SİL / AZALT (ZERO DIVISION ERROR TAMAMEN ÇÖZÜLDÜ)
+# 3. STOK SİL / AZALT (ONDALIKLI/KÜSURATLI DÜŞÜŞ DESTEĞİ)
 elif st.session_state.active_menu == "m3":
     st.header("📤 Raftan Malzeme Çıkarma / Azaltma")
     hedef_raf = st.selectbox("Malzemenin Çıkarılacağı Raf:", sorted(list(depo.keys())))
@@ -286,7 +287,7 @@ elif st.session_state.active_menu == "m3":
                 for k_key, detay in veriler.items():
                     raf_listesi.append({
                         "Hammadde": hmd,
-                        "Miktar (kg)": detay.get("miktar", 0),
+                        "Miktar (kg)": detay.get("miktar", 0.0),
                         "LOT No": detay.get("lot", "Girilmedi"),
                         "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
                     })
@@ -303,7 +304,7 @@ elif st.session_state.active_menu == "m3":
             for p_key, p_val in depo[hedef_raf][hammadde_adi].items():
                 p_lot = p_val.get('lot', 'Girilmedi')
                 p_skt = p_val.get('skt', 'Girilmedi')
-                p_mik = p_val.get('miktar', 0)
+                p_mik = p_val.get('miktar', 0.0)
                 etiket = f"Miktar: {p_mik} kg | LOT: {p_lot} | SKT: {p_skt}"
                 parti_secenekleri[p_key] = etiket
             
@@ -312,16 +313,13 @@ elif st.session_state.active_menu == "m3":
                 
             secilen_parti_key = st.selectbox("Düşüş Yapılacak LOT / SKT Seçimi:", options=list(parti_secenekleri.keys()), format_func=lambda x: parti_secenekleri[x])
             
-            # Değerleri güvenli şekilde çekiyoruz
-            mevcut_miktar = depo[hedef_raf][hammadde_adi][secilen_parti_key].get("miktar", 0)
+            mevcut_miktar = float(depo[hedef_raf][hammadde_adi][secilen_parti_key].get("miktar", 0.0))
             secilen_lot_no = depo[hedef_raf][hammadde_adi][secilen_parti_key].get("lot", "Girilmedi")
             secilen_skt_no = depo[hedef_raf][hammadde_adi][secilen_parti_key].get("skt", "Girilmedi")
             
-            max_sinir = int(mevcut_miktar)
-            
-            # SIFIRA BÖLÜNME VE DEĞER HATALARINI ENGELLEYEN HÜCRESEL KONTROL
-            if max_sinir < 1:
-                st.error(f"⚠️ Bu lottaki miktar düşüş yapmak için tam sayı sınırının altında ({mevcut_miktar} kg). Lütfen sağdaki buton ile tamamen silin.")
+            # ESNEK KONTROL: float tabanlı esnek üst sınır tanımı yapıldı
+            if mevcut_miktar <= 0.009:
+                st.error(f"⚠️ Bu lottaki miktar düşüş yapmak için yetersiz ({mevcut_miktar} kg). Lütfen sağdaki buton ile tamamen silin.")
                 if st.button("Bu Ürünü Raftan Tamamen Sil (Miktar Yetersiz)", use_container_width=True):
                     zaman_damgasi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     log_mesaji = f"🗑️ SİLİNDİ -> {st.session_state.user_display_name} tarafından {hedef_raf} rafındaki {hammadde_adi} (LOT: {secilen_lot_no}) kalıntısı temizlendi."
@@ -333,27 +331,27 @@ elif st.session_state.active_menu == "m3":
                     st.session_state.uyari_mesaji = "🗑️ Kayıt tamamen temizlendi."
                     st.rerun()
             else:
-                cikarilacak_miktar = st.number_input("Çıkarılacak/Azaltılacak Miktar (kg):", min_value=1, max_value=max_sinir, step=1)
+                # DEĞİŞİKLİK: min_value=0.01 yapıldı, step=0.1 ve format eklendi. İstediğiniz ondalıklı sayıyı yazabilirsiniz.
+                cikarilacak_miktar = st.number_input("Çıkarılacak/Azaltılacak Miktar (kg):", min_value=0.01, max_value=mevcut_miktar, step=0.1, format="%.2f")
                 
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("Seçilen Miktarı Stoktan Düş", use_container_width=True):
-                        # Stok düşümü yapılıyor
                         depo[hedef_raf][hammadde_adi][secilen_parti_key]["miktar"] -= cikarilacak_miktar
                         
                         zaman_damgasi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         log_mesaji = f"📤 ÇIKIŞ YAPILDI -> {st.session_state.user_display_name} tarafından {hedef_raf} rafından {cikarilacak_miktar} kg {hammadde_adi} (LOT: {secilen_lot_no} | SKT: {secilen_skt_no}) düşüldü."
                         gecmis_loglari.insert(0, {"tarih": zaman_damgasi, "islem": log_mesaji})
                         
-                        # Eğer miktar bittiyse kaydı güvenli şekilde yok ediyoruz
-                        if depo[hedef_raf][hammadde_adi][secilen_parti_key]["miktar"] <= 0:
+                        # Hassasiyet kaybını önlemek için çok küçük değerleri otomatik sıfırlıyoruz (Örn: 0.0001 kg kalması durumu)
+                        if depo[hedef_raf][hammadde_adi][secilen_parti_key]["miktar"] <= 0.009:
                             del depo[hedef_raf][hammadde_adi][secilen_parti_key]
                         if not depo[hedef_raf][hammadde_adi]:
                             del depo[hedef_raf][hammadde_adi]
                             
                         veri_kaydet(data)
                         st.session_state.basari_mesaji = f"📉 İŞLEM BAŞARILI: {hedef_raf} rafından {cikarilacak_miktar} kg {hammadde_adi} (LOT: {secilen_lot_no}) çıkış yapıldı."
-                        st.rerun() # Sayfayı hemen yenileyerek sıfıra bölünme riskini kökten siliyoruz.
+                        st.rerun()
                         
                 with col2:
                     if st.button("Bu Ürünü Raftan Tamamen Sil", use_container_width=True):
@@ -364,7 +362,7 @@ elif st.session_state.active_menu == "m3":
                         del depo[hedef_raf][hammadde_adi][secilen_parti_key]
                         if not depo[hedef_raf][hammadde_adi]:
                             del depo[hedef_raf][hammadde_adi]
-                            
+                        
                         veri_kaydet(data)
                         st.session_state.uyari_mesaji = f"🗑️ BİLDİRİM: {hedef_raf} rafındaki {hammadde_adi} (LOT: {secilen_lot_no}) tamamen silindi."
                         st.rerun()
@@ -435,7 +433,7 @@ elif st.session_state.active_menu == "m6":
                         for k_key, detay in veriler.items():
                             raf_tablo.append({
                                 "Hammadde": hammadde,
-                                "Miktar (kg)": detay.get("miktar", 0),
+                                "Miktar (kg)": detay.get("miktar", 0.0),
                                 "LOT No": detay.get("lot", "Girilmedi"),
                                 "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
                             })
