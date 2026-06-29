@@ -6,6 +6,10 @@ from datetime import datetime
 # --- VERİ TABANI AYARLARI ---
 DB_FILE = "depo_verisi.json"
 
+# LOGO URL ADRESLERİ
+BELKIM_LOGO = "https://www.belkim.com.tr/assets/images/logo.png"
+MARATEM_LOGO = "https://www.maratem.com.tr/assets/images/logo.png"
+
 # Excel'den gelen tüm raf adresleri
 EXCEL_RAFLARI = [
     "A111", "A112", "A113", "A121", "A122", "A123", "A131", "A132", "A133",
@@ -25,6 +29,41 @@ EXCEL_RAFLARI = [
     "D111", "D112", "D113", "D121"
 ]
 
+# --- SIFIR KURULUM VE TEMA ENJEKSİYONU ---
+st.set_page_config(page_title="Canlı Depo Yönetim Sistemi", layout="wide")
+
+# Sistemi zorunlu olarak LIGHT (AÇIK) moda geçiren ve logoları hizalayan CSS tasarımı
+st.markdown("""
+    <style>
+    /* Açık arka plan ve temiz fontlar */
+    .stApp {
+        background-color: #F8F9FA !important;
+        color: #212529 !important;
+    }
+    /* Menü alanı arka plan rengi */
+    [data-testid="stSidebar"] {
+        background-color: #FFFFFF !important;
+        border-right: 1px solid #E9ECEF;
+    }
+    /* Başlık stilleri */
+    h1, h2, h3 {
+        color: #1E3A8A !important;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    /* Logo container */
+    .logo-container {
+        display: flex;
+        justify-content: center;
+        gap: 40px;
+        margin-bottom: 25px;
+        background-color: white;
+        padding: 15px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 def veri_yukle():
     if os.path.exists(DB_FILE):
         with open(DB_FILE, "r", encoding="utf-8") as f:
@@ -33,7 +72,6 @@ def veri_yukle():
             except:
                 mevcut_veri = {}
         
-        # Eğer veri bozuksa veya eski formattaysa sıfırla
         if not isinstance(mevcut_veri, dict) or "stok" not in mevcut_veri:
             mevcut_veri = {
                 "stok": {raf: {} for raf in EXCEL_RAFLARI},
@@ -44,7 +82,6 @@ def veri_yukle():
         if "gecmis" not in mevcut_veri:
             mevcut_veri["gecmis"] = []
             
-        # Rafları kontrol et
         for raf in EXCEL_RAFLARI:
             if raf not in mevcut_veri["stok"] or not isinstance(mevcut_veri["stok"][raf], dict):
                 mevcut_veri["stok"][raf] = {}
@@ -73,7 +110,6 @@ depo = data["stok"]
 kullanicilar = data["kullanicilar"]
 gecmis_loglari = data.get("gecmis", [])
 
-# Onay bildirimleri için geçici session state alanları
 if "basari_mesaji" not in st.session_state:
     st.session_state.basari_mesaji = None
 if "uyari_mesaji" not in st.session_state:
@@ -108,7 +144,14 @@ def logout():
 
 # --- GİRİŞ EKRANI ARAYÜZÜ ---
 if not st.session_state.logged_in:
-    st.set_page_config(page_title="Giriş - Canlı Depo", layout="centered")
+    # Giriş ekranında kurumsal logoları yan yana gösterelim
+    st.markdown(f"""
+        <div class="logo-container">
+            <img src="{BELKIM_LOGO}" height="50">
+            <img src="{MARATEM_LOGO}" height="50">
+        </div>
+    """, unsafe_allow_html=True)
+    
     st.title("🏭 Canlı Depo Yönetim Sistemi")
     st.subheader("Lütfen Giriş Yapın")
     
@@ -120,7 +163,9 @@ if not st.session_state.logged_in:
     st.stop()
 
 # --- ANA UYGULAMA ARAYÜZÜ ---
-st.set_page_config(page_title="Canlı Depo Yönetim Sistemi", layout="wide")
+# Sol yan menünün (sidebar) en üstüne logoları ekleyelim
+st.sidebar.image([BELKIM_LOGO, MARATEM_LOGO], width=120)
+st.sidebar.write("---")
 
 col_title, col_user = st.columns([4, 1])
 with col_title:
@@ -132,117 +177,11 @@ with col_user:
 
 st.write("---")
 
-# --- ANLIK BİLDİRİM EKRANI (ÜSTTE SABİT KALACAK) ---
 if st.session_state.basari_mesaji:
     st.success(st.session_state.basari_mesaji)
-    st.session_state.basari_mesaji = None  # Bir sonraki tıklamada temizlensin diye
+    st.session_state.basari_mesaji = None
 if st.session_state.uyari_mesaji:
     st.warning(st.session_state.uyari_mesaji)
     st.session_state.uyari_mesaji = None
 
-# --- MENÜ SEÇENEKLERİ ---
-st.sidebar.header("⚙️ Depo İşlemleri")
-menü_secenekleri = [
-    "🔍 Arama & Sorgulama", 
-    "📥 Stok Ekle / Güncelle", 
-    "📤 Stok Çıkar / Azalt / Sil", 
-    "➕ Yeni Raf Tanımla", 
-    "👥 Kullanıcı Yönetimi", 
-    "📊 Tüm Depo Durumu",
-    "📜 Depo Hareket Geçmişi"
-]
-
-islem = st.sidebar.radio("Bir işlem seçin:", menü_secenekleri)
-
-# --- 1. ARAMA & SORGULAMA ---
-if islem == "🔍 Arama & Sorgulama":
-    st.header("🔍 Hammadde veya Raf Ara")
-    arama_turu = st.radio("Arama Yöntemi:", ["Hammaddeye Göre Ara", "Rafa Göre Ara"])
-
-    if arama_turu == "Hammaddeye Göre Ara":
-        arama_kelimesi = st.text_input("Aranacak Hammadde Adı:").strip().upper()
-        if arama_kelimesi:
-            bulundu = False
-            sonuclar = []
-            
-            for raf, icerik in depo.items():
-                if isinstance(icerik, dict) and arama_kelimesi in icerik:
-                    if isinstance(icerik[arama_kelimesi], dict):
-                        for s_key, detay in icerik[arama_kelimesi].items():
-                            sonuclar.append({
-                                "Raf Adresi": raf,
-                                "Miktar (kg)": detay.get("miktar", 0),
-                                "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
-                            })
-                            bulundu = True
-            
-            if bulundu:
-                st.table(sonuclar)
-            else:
-                st.error(f"❌ Depoda '{arama_kelimesi}' isimli bir hammadde bulunamadı.")
-
-    elif arama_turu == "Rafa Göre Ara":
-        secilen_raf = st.selectbox("Sorgulanacak Rafı Seçin:", sorted(list(depo.keys())))
-        st.subheader(f"📍 {secilen_raf} Raf İçeriği")
-        if depo.get(secilen_raf):
-            raf_icerik = []
-            for hammadde, veriler in depo[secilen_raf].items():
-                if isinstance(veriler, dict):
-                    for s_key, detay in veriler.items():
-                        raf_icerik.append({
-                            "Hammadde": hammadde,
-                            "Miktar (kg)": detay.get("miktar", 0),
-                            "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
-                        })
-            if raf_icerik:
-                st.table(raf_icerik)
-            else:
-                st.warning("Bu raf şu anda boş.")
-        else:
-            st.warning("Bu raf şu anda boş.")
-
-# --- 2. STOK GİRİŞİ ---
-elif islem == "📥 Stok Ekle / Güncelle":
-    st.header("📥 Rafa Malzeme Girişi")
-    hedef_raf = st.selectbox("Malzemenin Konulacağı Raf:", sorted(list(depo.keys())))
-    hammadde_adi = st.text_input("Hammadde Adı:").strip().upper()
-    miktar = st.number_input("Eklenecek Miktar (kg):", min_value=1, step=1)
-    
-    skt_opsiyon = st.checkbox("Son Kullanma Tarihi Girmek İstiyorum")
-    skt_tarihi = "Girilmedi"
-    if skt_opsiyon:
-        skt_tarihi = st.date_input("Son Kullanma Tarihi Seçin:", min_value=datetime.today()).strftime("%Y-%m-%d")
-    
-    if st.button("Stoku Kaydet/Ekle", use_container_width=True):
-        if hammadde_adi:
-            if hammadde_adi not in depo[hedef_raf] or not isinstance(depo[hedef_raf][hammadde_adi], dict):
-                depo[hedef_raf][hammadde_adi] = {}
-            
-            if skt_tarihi in depo[hedef_raf][hammadde_adi]:
-                depo[hedef_raf][hammadde_adi][skt_tarihi]["miktar"] += miktar
-            else:
-                depo[hedef_raf][hammadde_adi][skt_tarihi] = {"miktar": miktar, "skt": skt_tarihi}
-            
-            # --- HAREKET GEÇMİŞİ KAYDI ---
-            zaman_damgasi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            log_mesaji = f"📥 GİRİŞ YAPILDI -> {st.session_state.user_display_name} tarafından {hedef_raf} rafına {miktar} kg {hammadde_adi} (SKT: {skt_tarihi}) eklendi."
-            gecmis_loglari.insert(0, {"tarih": zaman_damgasi, "islem": log_mesaji})
-            
-            veri_kaydet(data)
-            st.session_state.basari_mesaji = f"✅ İŞLEM BAŞARILI: {hedef_raf} rafına {miktar} kg {hammadde_adi} giriş yapıldı."
-            st.rerun()
-        else:
-            st.error("Lütfen hammadde adı girin.")
-
-# --- 3. STOK SİL / AZALT ---
-elif islem == "📤 Stok Çıkar / Azalt / Sil":
-    st.header("📤 Raftan Malzeme Çıkarma / Azaltma")
-    hedef_raf = st.selectbox("Malzemenin Çıkarılacağı Raf:", sorted(list(depo.keys())))
-    
-    if depo.get(hedef_raf) and isinstance(depo[hedef_raf], dict):
-        gecerli_hammadde_listesi = [k for k, v in depo[hedef_raf].items() if isinstance(v, dict) and v]
-        
-        if gecerli_hammadde_listesi:
-            hammadde_adi = st.selectbox("Çıkarılacak Hammaddeyi Seçin:", gecerli_hammadde_listesi)
-            skt_listesi = list(depo[hedef_raf][hammadde_adi].keys())
-            secilen_skt = st.selectbox("Hangi SKT'li Ürün Çıkarıl
+# --- MENÜ SEÇENEKLER
