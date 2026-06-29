@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 # --- VERİ TABANI AYARLARI ---
-DB_FILE = "depo_sistemi_guncel.json"
+DB_FILE = "depo_sistemi_lot_takip.json"
 
 # Excel'den gelen tüm raf adresleri
 EXCEL_RAFLARI = [
@@ -139,7 +139,6 @@ if st.session_state.uyari_mesaji:
 # --- MENÜ SEÇENEKLERİ ---
 st.sidebar.header("⚙️ Depo İşlemleri")
 
-# Sunucunun dil karmaşasını önlemek için arka plan anahtarları (Key) ekledik
 menü_secenekleri = {
     "m1": "🔍 Arama & Sorgulama", 
     "m2": "📥 Stok Ekle / Güncelle", 
@@ -171,10 +170,11 @@ if secilen_key == "m1":
             for raf, icerik in depo.items():
                 if isinstance(icerik, dict) and arama_kelimesi in icerik:
                     if isinstance(icerik[arama_kelimesi], dict):
-                        for s_key, detay in icerik[arama_kelimesi].items():
+                        for k_key, detay in icerik[arama_kelimesi].items():
                             sonuclar.append({
                                 "Raf Adresi": raf,
                                 "Miktar (kg)": detay.get("miktar", 0),
+                                "LOT No": detay.get("lot", "Girilmedi"),
                                 "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
                             })
                             bulundu = True
@@ -191,10 +191,11 @@ if secilen_key == "m1":
             raf_icerik = []
             for hammadde, veriler in depo[secilen_raf].items():
                 if isinstance(veriler, dict):
-                    for s_key, detay in veriler.items():
+                    for k_key, detay in veriler.items():
                         raf_icerik.append({
                             "Hammadde": hammadde,
                             "Miktar (kg)": detay.get("miktar", 0),
+                            "LOT No": detay.get("lot", "Girilmedi"),
                             "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
                         })
             if raf_icerik:
@@ -208,57 +209,8 @@ if secilen_key == "m1":
 elif secilen_key == "m2":
     st.header("📥 Rafa Malzeme Girişi")
     hedef_raf = st.selectbox("Malzemenin Konulacağı Raf:", sorted(list(depo.keys())), key="add_stock_shelf_select")
-    hammadde_adi = st.text_input("Hammadde Adı:", key="add_stock_material_input").strip().upper()
-    miktar = st.number_input("Eklenecek Miktar (kg):", min_value=1, step=1, key="add_stock_qty_input")
     
-    skt_opsiyon = st.checkbox("Son Kullanma Tarihi Girmek İstiyorum", key="add_stock_skt_checkbox")
-    skt_tarihi = "Girilmedi"
-    if skt_opsiyon:
-        skt_tarihi = st.date_input("Son Kullanma Tarihi Seçin:", min_value=datetime.today(), key="add_stock_skt_date").strftime("%Y-%m-%d")
-    
-    if st.button("Stoku Kaydet/Ekle", use_container_width=True, key="add_stock_submit_btn"):
-        if hammadde_adi:
-            if hammadde_adi not in depo[hedef_raf] or not isinstance(depo[hedef_raf][hammadde_adi], dict):
-                depo[hedef_raf][hammadde_adi] = {}
-            
-            if skt_tarihi in depo[hedef_raf][hammadde_adi]:
-                depo[hedef_raf][hammadde_adi][skt_tarihi]["miktar"] += miktar
-            else:
-                depo[hedef_raf][hammadde_adi][skt_tarihi] = {"miktar": miktar, "skt": skt_tarihi}
-            
-            zaman_damgasi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            log_mesaji = f"📥 GİRİŞ YAPILDI -> {st.session_state.user_display_name} tarafından {hedef_raf} rafına {miktar} kg {hammadde_adi} (SKT: {skt_tarihi}) eklendi."
-            gecmis_loglari.insert(0, {"tarih": zaman_damgasi, "islem": log_mesaji})
-            
-            veri_kaydet(data)
-            st.session_state.basari_mesaji = f"✅ İŞLEM BAŞARILI: {hedef_raf} rafına {miktar} kg {hammadde_adi} giriş yapıldı."
-            st.rerun()
-        else:
-            st.error("Lütfen hammadde adı girin.")
-
-# --- 3. STOK SİL / AZALT ---
-elif secilen_key == "m3":
-    st.header("📤 Raftan Malzeme Çıkarma / Azaltma")
-    hedef_raf = st.selectbox("Malzemenin Çıkarılacağı Raf:", sorted(list(depo.keys())), key="remove_stock_shelf_select")
-    
-    if depo.get(hedef_raf) and isinstance(depo[hedef_raf], dict):
-        gecerli_hammadde_listesi = [k for k, v in depo[hedef_raf].items() if isinstance(v, dict) and v]
-        
-        if gecerli_hammadde_listesi:
-            hammadde_adi = st.selectbox("Çıkarılacak Hammaddeyi Seçin:", gecerli_hammadde_listesi, key="remove_stock_material_select")
-            skt_listesi = list(depo[hedef_raf][hammadde_adi].keys())
-            secilen_skt = st.selectbox("Hangi SKT'li Ürün Çıkarılacak?", skt_listesi, key="remove_stock_skt_select")
-            
-            mevcut_miktar = depo[hedef_raf][hammadde_adi][secilen_skt]["miktar"]
-            st.info(f"💡 Bu rafta seçilen üründen şu an **{mevcut_miktar} kg** var.")
-            
-            cikarilacak_miktar = st.number_input("Çıkarılacak/Azaltılacak Miktar (kg):", min_value=1, max_value=int(mevcut_miktar), step=1, key="remove_stock_qty_input")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Seçilen Miktarı Stoktan Düş", use_container_width=True, key="remove_stock_deduct_btn"):
-                    depo[hedef_raf][hammadde_adi][secilen_skt]["miktar"] -= cikarilacak_miktar
-                    
-                    zaman_damgasi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    log_mesaji = f"📤 ÇIKIŞ YAPILDI -> {st.session_state.user_display_name} tarafından {hedef_raf} rafından {cikarilacak_miktar} kg {hammadde_adi} (SKT: {secilen_skt}) düşüldü."
-                    gecmis
+    st.subheader("📍 Seçilen Rafın Anlık Mevcut İçeriği")
+    mevcut_icerik = []
+    if depo.get(hedef_raf):
+        for hmd, veriler in depo
