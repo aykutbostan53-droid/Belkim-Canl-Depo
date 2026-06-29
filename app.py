@@ -1,4 +1,4 @@
-import streamlit as St
+import streamlit as st
 import json
 import os
 import time
@@ -7,6 +7,7 @@ from datetime import datetime
 # --- VERİ TABANI AYARLARI ---
 DB_FILE = "depo_lot_skt_nihai_v1.json"
 
+# Excel'den gelen tüm raf adresleri
 EXCEL_RAFLARI = [
     "A111", "A112", "A113", "A121", "A122", "A123", "A131", "A132", "A133",
     "A211", "A212", "A213", "A221", "A222", "A223", "A231", "A232", "A233",
@@ -37,24 +38,24 @@ def veri_yukle():
             mevcut_veri = {
                 "stok": {raf: {} for raf in EXCEL_RAFLARI},
                 "kullanicilar": ["sinem", "vedat", "halim", "yasin"],
-                "gecmis": [],
-                "aktif_oturumlar": {}
+                "gecmis": []
             }
         if "gecmis" not in mevcut_veri:
             mevcut_veri["gecmis"] = []
-        if "aktif_oturumlar" not in mevcut_veri:
-            mevcut_veri["aktif_oturumlar"] = {}
             
         for raf in EXCEL_RAFLARI:
             if raf not in mevcut_veri["stok"] or not isinstance(mevcut_veri["stok"][raf], dict):
                 mevcut_veri["stok"][raf] = {}
+            else:
+                for hmd in list(mevcut_veri["stok"][raf].keys()):
+                    if not isinstance(mevcut_veri["stok"][raf][hmd], dict):
+                        mevcut_veri["stok"][raf][hmd] = {}
         return mevcut_veri
     
     return {
         "stok": {raf: {} for raf in EXCEL_RAFLARI},
         "kullanicilar": ["sinem", "vedat", "halim", "yasin"],
-        "gecmis": [],
-        "aktif_oturumlar": {}
+        "gecmis": []
     }
 
 def veri_kaydet(data):
@@ -62,6 +63,8 @@ def veri_kaydet(data):
         json.dump(data, f, ensure_ascii=False, indent=4)
 
 # --- HAFIZA BAŞLATMA ---
+if "depo_data" not in st.session_state:
+    st.session_state.depo_data = veri_yukle()
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "user_display_name" not in st.session_state:
@@ -86,10 +89,8 @@ def login(username, password):
     temp_data = veri_yukle()
     current_sessions = temp_data.get("aktif_oturumlar", {})
     
-    # Sadece giriş esnasında başka birinin tarayıcısında açık olup olmadığını kontrol et
     if u_clean in current_sessions and u_clean != "admin":
         st.error(f"❌ Bu hesap şu an başka bir cihazda aktif görünüyor! (Giriş: {current_sessions[u_clean]})")
-        st.info("Eğer açık sekme kalmadıysa, Admin kullanıcısından oturumu sıfırlamasını isteyebilirsiniz.")
         return
 
     if u_clean == "admin" and p_clean == "belkim41":
@@ -131,16 +132,15 @@ if not st.session_state.logged_in:
         if submit_login:
             login(username_input, password_input)
             
-    # --- ADMIN İÇİN OTURUM SIFIRLAMA PANELİ ---
     st.write("---")
     with st.expander("🔑 Yönetici: Kilitli Oturumları Sıfırla"):
         admin_pass = st.text_input("Yönetici Şifresi:", type="password", key="admin_reset_pass")
         if admin_pass == "belkim41":
             t_sessions = veri_yukle().get("aktif_oturumlar", {})
             if t_sessions:
-                st.write("Şu an aktif/kilitli görünen hesaplar:")
+                st.write("Şu an kilitli görünen hesaplar:")
                 for u_sess in list(t_sessions.keys()):
-                    if st.button(f"❌ {u_sess.capitalize()} Oturumunu Kapat/Sıfırla", key=f"reset_{u_sess}"):
+                    if st.button(f"❌ {u_sess.capitalize()} Oturumunu Kapat", key=f"reset_{u_sess}"):
                         t_data = veri_yukle()
                         if u_sess in t_data.get("aktif_oturumlar", {}):
                             del t_data["aktif_oturumlar"][u_sess]
@@ -149,7 +149,7 @@ if not st.session_state.logged_in:
                         time.sleep(1)
                         st.rerun()
             else:
-                st.info("Şu an kilitli veya aktif hiçbir kullanıcı oturumu yok.")
+                st.info("Şu an kilitli hiçbir kullanıcı oturumu yok.")
     st.stop()
 
 # --- ANA UYGULAMA ARAYÜZÜ ---
