@@ -37,15 +37,18 @@ def veri_yukle():
         if not isinstance(mevcut_veri, dict) or "stok" not in mevcut_veri:
             mevcut_veri = {
                 "stok": {raf: {} for raf in EXCEL_RAFLARI},
-                "kullanicilar": ["sinem", "vedat", "halim", "yasin"]
+                "kullanicilar": ["sinem", "vedat", "halim", "yasin"],
+                "gecmis": []
             }
         
-        # İçerideki tüm rafları kontrol et, veri yapısı dict (sözlük) değilse temizle (Hata Önleyici)
+        if "gecmis" not in mevcut_veri:
+            mevcut_veri["gecmis"] = []
+            
+        # Rafları kontrol et
         for raf in EXCEL_RAFLARI:
             if raf not in mevcut_veri["stok"] or not isinstance(mevcut_veri["stok"][raf], dict):
                 mevcut_veri["stok"][raf] = {}
             else:
-                # Hammaddelerin alt kırılımlarını kontrol et (Format koruma)
                 for hmd in list(mevcut_veri["stok"][raf].keys()):
                     if not isinstance(mevcut_veri["stok"][raf][hmd], dict):
                         mevcut_veri["stok"][raf][hmd] = {}
@@ -54,7 +57,8 @@ def veri_yukle():
     
     return {
         "stok": {raf: {} for raf in EXCEL_RAFLARI},
-        "kullanicilar": ["sinem", "vedat", "halim", "yasin"]
+        "kullanicilar": ["sinem", "vedat", "halim", "yasin"],
+        "gecmis": []
     }
 
 def veri_kaydet(data):
@@ -67,6 +71,13 @@ if "depo_data" not in st.session_state:
 data = st.session_state.depo_data
 depo = data["stok"]
 kullanicilar = data["kullanicilar"]
+gecmis_loglari = data.get("gecmis", [])
+
+# Onay bildirimleri için geçici session state alanları
+if "basari_mesaji" not in st.session_state:
+    st.session_state.basari_mesaji = None
+if "uyari_mesaji" not in st.session_state:
+    st.session_state.uyari_mesaji = None
 
 # --- KULLANICI DOĞRULAMA (LOGIN) SİSTEMİ ---
 if "logged_in" not in st.session_state:
@@ -121,6 +132,14 @@ with col_user:
 
 st.write("---")
 
+# --- ANLIK BİLDİRİM EKRANI (ÜSTTE SABİT KALACAK) ---
+if st.session_state.basari_mesaji:
+    st.success(st.session_state.basari_mesaji)
+    st.session_state.basari_mesaji = None  # Bir sonraki tıklamada temizlensin diye
+if st.session_state.uyari_mesaji:
+    st.warning(st.session_state.uyari_mesaji)
+    st.session_state.uyari_mesaji = None
+
 # --- MENÜ SEÇENEKLERİ ---
 st.sidebar.header("⚙️ Depo İşlemleri")
 menü_secenekleri = [
@@ -129,7 +148,8 @@ menü_secenekleri = [
     "📤 Stok Çıkar / Azalt / Sil", 
     "➕ Yeni Raf Tanımla", 
     "👥 Kullanıcı Yönetimi", 
-    "📊 Tüm Depo Durumu"
+    "📊 Tüm Depo Durumu",
+    "📜 Depo Hareket Geçmişi"
 ]
 
 islem = st.sidebar.radio("Bir işlem seçin:", menü_secenekleri)
@@ -202,9 +222,14 @@ elif islem == "📥 Stok Ekle / Güncelle":
                 depo[hedef_raf][hammadde_adi][skt_tarihi]["miktar"] += miktar
             else:
                 depo[hedef_raf][hammadde_adi][skt_tarihi] = {"miktar": miktar, "skt": skt_tarihi}
-                
+            
+            # --- HAREKET GEÇMİŞİ KAYDI ---
+            zaman_damgasi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            log_mesaji = f"📥 GİRİŞ YAPILDI -> {st.session_state.user_display_name} tarafından {hedef_raf} rafına {miktar} kg {hammadde_adi} (SKT: {skt_tarihi}) eklendi."
+            gecmis_loglari.insert(0, {"tarih": zaman_damgasi, "islem": log_mesaji})
+            
             veri_kaydet(data)
-            st.success(f"✅ {hedef_raf} rafına {miktar} kg {hammadde_adi} (SKT: {skt_tarihi}) başarıyla eklendi!")
+            st.session_state.basari_mesaji = f"✅ İŞLEM BAŞARILI: {hedef_raf} rafına {miktar} kg {hammadde_adi} giriş yapıldı."
             st.rerun()
         else:
             st.error("Lütfen hammadde adı girin.")
@@ -214,121 +239,10 @@ elif islem == "📤 Stok Çıkar / Azalt / Sil":
     st.header("📤 Raftan Malzeme Çıkarma / Azaltma")
     hedef_raf = st.selectbox("Malzemenin Çıkarılacağı Raf:", sorted(list(depo.keys())))
     
-    # Raf dolu mu ve içindeki veriler düzgün formatta mı?
     if depo.get(hedef_raf) and isinstance(depo[hedef_raf], dict):
-        # Sadece dict formatındaki geçerli hammaddeleri listele
         gecerli_hammadde_listesi = [k for k, v in depo[hedef_raf].items() if isinstance(v, dict) and v]
         
         if gecerli_hammadde_listesi:
             hammadde_adi = st.selectbox("Çıkarılacak Hammaddeyi Seçin:", gecerli_hammadde_listesi)
             skt_listesi = list(depo[hedef_raf][hammadde_adi].keys())
-            secilen_skt = st.selectbox("Hangi SKT'li Ürün Çıkarılacak?", skt_listesi)
-            
-            mevcut_miktar = depo[hedef_raf][hammadde_adi][secilen_skt]["miktar"]
-            st.info(f"💡 Bu rafta seçilen üründen şu an **{mevcut_miktar} kg** var.")
-            
-            cikarilacak_miktar = st.number_input("Çıkarılacak/Azaltılacak Miktar (kg):", min_value=1, max_value=int(mevcut_miktar), step=1)
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("Seçilen Miktarı Stoktan Düş", use_container_width=True):
-                    depo[hedef_raf][hammadde_adi][secilen_skt]["miktar"] -= cikarilacak_miktar
-                    if depo[hedef_raf][hammadde_adi][secilen_skt]["miktar"] <= 0:
-                        del depo[hedef_raf][hammadde_adi][secilen_skt]
-                    if not depo[hedef_raf][hammadde_adi]:
-                        del depo[hedef_raf][hammadde_adi]
-                        
-                    veri_kaydet(data)
-                    st.success(f"📉 Raftan {cikarilacak_miktar} kg düşüldü.")
-                    st.rerun()
-                    
-            with col2:
-                if st.button("Bu Ürünü Raftan Tamamen Sil", use_container_width=True):
-                    del depo[hedef_raf][hammadde_adi][secilen_skt]
-                    if not depo[hedef_raf][hammadde_adi]:
-                        del depo[hedef_raf][hammadde_adi]
-                    veri_kaydet(data)
-                    st.warning("🗑️ Ürün raftan tamamen temizlendi.")
-                    st.rerun()
-        else:
-            st.warning("Seçilen raf şu anda boş.")
-    else:
-        st.warning("Seçilen raf zaten şu anda tamamen boş.")
-
-# --- 4. YENİ RAF TANIMLA ---
-elif islem == "➕ Yeni Raf Tanımla":
-    st.header("➕ Yeni Ekstra Raf Adresi Oluştur")
-    yeni_raf = st.text_input("Oluşturulacak Raf Adı (Örn: E111):").strip().upper()
-    
-    if st.button("Rafı Sisteme Ekle"):
-        if yeni_raf:
-            if yeni_raf not in depo:
-                depo[yeni_raf] = {}
-                veri_kaydet(data)
-                st.success(f"✅ {yeni_raf} adresi sisteme başarıyla tanımlandı.")
-                st.rerun()
-            else:
-                st.warning(f"⚠️ {yeni_raf} adresi zaten mevcut.")
-        else:
-            st.error("Raf adı boş bırakılamaz.")
-
-# --- 5. KULLANICI YÖNETİMİ ---
-elif islem == "👥 Kullanıcı Yönetimi":
-    st.header("👥 Kullanıcı Hesapları Yönetimi")
-    
-    st.subheader("Yeni Kullanıcı Ekle")
-    yeni_user = st.text_input("Eklenecek Kullanıcı Adı (Küçük harf, Türkçe karaktersiz):").strip().lower()
-    if st.button("Kullanıcıyı Kaydet"):
-        if yeni_user and yeni_user not in kullanicilar and yeni_user != "admin":
-            kullanicilar.append(yeni_user)
-            veri_kaydet(data)
-            st.success(f"✅ '{yeni_user}' kullanıcısı eklendi. (Şifre: '{yeni_user}')")
-            st.rerun()
-        else:
-            st.error("Geçersiz kullanıcı adı veya bu kullanıcı zaten mevcut.")
-            
-    st.write("---")
-    st.subheader("Mevcut Kullanıcı Listesi")
-    if kullanicilar:
-        for idx, user in enumerate(kullanicilar):
-            col_u_name, col_u_del = st.columns([3, 1])
-            with col_u_name:
-                st.write(f"👤 {user.capitalize()} (Şifre: {user})")
-            with col_u_del:
-                if st.button("Sil", key=f"del_{idx}"):
-                    kullanicilar.remove(user)
-                    veri_kaydet(data)
-                    st.warning(f"🗑️ {user.capitalize()} kullanıcısı sistemden silindi.")
-                    st.rerun()
-    else:
-        st.write("Sistemde varsayılan admin dışında ekli kullanıcı yok.")
-
-# --- 6. TÜM DEPO DURUMU ---
-elif islem == "📊 Tüm Depo Durumu":
-    st.header("📊 Anlık Depo Durum Raporu")
-    
-    dolu_raflar = {}
-    for k, v in depo.items():
-        if v and isinstance(v, dict):
-            # İçinde gerçekten dict formatında dolu hammadde var mı?
-            if any(isinstance(h_v, dict) and h_v for h_k, h_v in v.items()):
-                dolu_raflar[k] = v
-    
-    if dolu_raflar:
-        for raf, icerik in sorted(dolu_raflar.items()):
-            with st.expander(f"📦 Raf: {raf} (Dolu)"):
-                raf_tablo = []
-                for hammadde, veriler in icerik.items():
-                    if isinstance(veriler, dict):
-                        for s_key, detay in veriler.items():
-                            raf_tablo.append({
-                                "Hammadde": hammadde,
-                                "Miktar (kg)": detay.get("miktar", 0),
-                                "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
-                            })
-                if raf_tablo:
-                    st.table(raf_tablo)
-                else:
-                    st.write("Bu raf boş.")
-    else:
-        st.write("Depodaki tüm raflar şu anda boş.")
+            secilen_skt = st.selectbox("Hangi SKT'li Ürün Çıkarıl
