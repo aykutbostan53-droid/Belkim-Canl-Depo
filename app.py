@@ -6,7 +6,7 @@ from datetime import datetime
 # --- VERİ TABANI AYARLARI ---
 DB_FILE = "depo_verisi.json"
 
-# Excel'den otomatik olarak çekilen tüm raf adresleri listesi
+# Excel'den gelen tüm raf adresleri
 EXCEL_RAFLARI = [
     "A111", "A112", "A113", "A121", "A122", "A123", "A131", "A132", "A133",
     "A211", "A212", "A213", "A221", "A222", "A223", "A231", "A232", "A233",
@@ -28,18 +28,28 @@ EXCEL_RAFLARI = [
 def veri_yukle():
     if os.path.exists(DB_FILE):
         with open(DB_FILE, "r", encoding="utf-8") as f:
-            mevcut_veri = json.load(f)
+            try:
+                mevcut_veri = json.load(f)
+            except:
+                mevcut_veri = {}
         
-        if "stok" not in mevcut_veri:
-            eski_veri = mevcut_veri.copy()
+        # Eğer veri bozuksa veya eski formattaysa sıfırla
+        if not isinstance(mevcut_veri, dict) or "stok" not in mevcut_veri:
             mevcut_veri = {
-                "stok": eski_veri,
+                "stok": {raf: {} for raf in EXCEL_RAFLARI},
                 "kullanicilar": ["sinem", "vedat", "halim", "yasin"]
             }
         
+        # İçerideki tüm rafları kontrol et, veri yapısı dict (sözlük) değilse temizle (Hata Önleyici)
         for raf in EXCEL_RAFLARI:
-            if raf not in mevcut_veri["stok"]:
+            if raf not in mevcut_veri["stok"] or not isinstance(mevcut_veri["stok"][raf], dict):
                 mevcut_veri["stok"][raf] = {}
+            else:
+                # Hammaddelerin alt kırılımlarını kontrol et (Format koruma)
+                for hmd in list(mevcut_veri["stok"][raf].keys()):
+                    if not isinstance(mevcut_veri["stok"][raf][hmd], dict):
+                        mevcut_veri["stok"][raf][hmd] = {}
+                        
         return mevcut_veri
     
     return {
@@ -111,7 +121,7 @@ with col_user:
 
 st.write("---")
 
-# --- MENÜ SEÇENEKLERİ (HERKES İÇİN TÜM YETKİLER AÇIK) ---
+# --- MENÜ SEÇENEKLERİ ---
 st.sidebar.header("⚙️ Depo İşlemleri")
 menü_secenekleri = [
     "🔍 Arama & Sorgulama", 
@@ -136,14 +146,15 @@ if islem == "🔍 Arama & Sorgulama":
             sonuclar = []
             
             for raf, icerik in depo.items():
-                if arama_kelimesi in icerik:
-                    for s_key, detay in icerik[arama_kelimesi].items():
-                        sonuclar.append({
-                            "Raf Adresi": raf,
-                            "Miktar (kg)": detay["miktar"],
-                            "Son Kullanma Tarihi": detay["skt"]
-                        })
-                        bulundu = True
+                if isinstance(icerik, dict) and arama_kelimesi in icerik:
+                    if isinstance(icerik[arama_kelimesi], dict):
+                        for s_key, detay in icerik[arama_kelimesi].items():
+                            sonuclar.append({
+                                "Raf Adresi": raf,
+                                "Miktar (kg)": detay.get("miktar", 0),
+                                "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
+                            })
+                            bulundu = True
             
             if bulundu:
                 st.table(sonuclar)
@@ -153,16 +164,20 @@ if islem == "🔍 Arama & Sorgulama":
     elif arama_turu == "Rafa Göre Ara":
         secilen_raf = st.selectbox("Sorgulanacak Rafı Seçin:", sorted(list(depo.keys())))
         st.subheader(f"📍 {secilen_raf} Raf İçeriği")
-        if depo[secilen_raf]:
+        if depo.get(secilen_raf):
             raf_icerik = []
             for hammadde, veriler in depo[secilen_raf].items():
-                for s_key, detay in veriler.items():
-                    raf_icerik.append({
-                        "Hammadde": hammadde,
-                        "Miktar (kg)": detay["miktar"],
-                        "Son Kullanma Tarihi": detay["skt"]
-                    })
-            st.table(raf_icerik)
+                if isinstance(veriler, dict):
+                    for s_key, detay in veriler.items():
+                        raf_icerik.append({
+                            "Hammadde": hammadde,
+                            "Miktar (kg)": detay.get("miktar", 0),
+                            "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
+                        })
+            if raf_icerik:
+                st.table(raf_icerik)
+            else:
+                st.warning("Bu raf şu anda boş.")
         else:
             st.warning("Bu raf şu anda boş.")
 
@@ -180,7 +195,7 @@ elif islem == "📥 Stok Ekle / Güncelle":
     
     if st.button("Stoku Kaydet/Ekle", use_container_width=True):
         if hammadde_adi:
-            if hammadde_adi not in depo[hedef_raf]:
+            if hammadde_adi not in depo[hedef_raf] or not isinstance(depo[hedef_raf][hammadde_adi], dict):
                 depo[hedef_raf][hammadde_adi] = {}
             
             if skt_tarihi in depo[hedef_raf][hammadde_adi]:
@@ -190,10 +205,130 @@ elif islem == "📥 Stok Ekle / Güncelle":
                 
             veri_kaydet(data)
             st.success(f"✅ {hedef_raf} rafına {miktar} kg {hammadde_adi} (SKT: {skt_tarihi}) başarıyla eklendi!")
+            st.rerun()
         else:
             st.error("Lütfen hammadde adı girin.")
 
 # --- 3. STOK SİL / AZALT ---
 elif islem == "📤 Stok Çıkar / Azalt / Sil":
     st.header("📤 Raftan Malzeme Çıkarma / Azaltma")
-    hedef
+    hedef_raf = st.selectbox("Malzemenin Çıkarılacağı Raf:", sorted(list(depo.keys())))
+    
+    # Raf dolu mu ve içindeki veriler düzgün formatta mı?
+    if depo.get(hedef_raf) and isinstance(depo[hedef_raf], dict):
+        # Sadece dict formatındaki geçerli hammaddeleri listele
+        gecerli_hammadde_listesi = [k for k, v in depo[hedef_raf].items() if isinstance(v, dict) and v]
+        
+        if gecerli_hammadde_listesi:
+            hammadde_adi = st.selectbox("Çıkarılacak Hammaddeyi Seçin:", gecerli_hammadde_listesi)
+            skt_listesi = list(depo[hedef_raf][hammadde_adi].keys())
+            secilen_skt = st.selectbox("Hangi SKT'li Ürün Çıkarılacak?", skt_listesi)
+            
+            mevcut_miktar = depo[hedef_raf][hammadde_adi][secilen_skt]["miktar"]
+            st.info(f"💡 Bu rafta seçilen üründen şu an **{mevcut_miktar} kg** var.")
+            
+            cikarilacak_miktar = st.number_input("Çıkarılacak/Azaltılacak Miktar (kg):", min_value=1, max_value=int(mevcut_miktar), step=1)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Seçilen Miktarı Stoktan Düş", use_container_width=True):
+                    depo[hedef_raf][hammadde_adi][secilen_skt]["miktar"] -= cikarilacak_miktar
+                    if depo[hedef_raf][hammadde_adi][secilen_skt]["miktar"] <= 0:
+                        del depo[hedef_raf][hammadde_adi][secilen_skt]
+                    if not depo[hedef_raf][hammadde_adi]:
+                        del depo[hedef_raf][hammadde_adi]
+                        
+                    veri_kaydet(data)
+                    st.success(f"📉 Raftan {cikarilacak_miktar} kg düşüldü.")
+                    st.rerun()
+                    
+            with col2:
+                if st.button("Bu Ürünü Raftan Tamamen Sil", use_container_width=True):
+                    del depo[hedef_raf][hammadde_adi][secilen_skt]
+                    if not depo[hedef_raf][hammadde_adi]:
+                        del depo[hedef_raf][hammadde_adi]
+                    veri_kaydet(data)
+                    st.warning("🗑️ Ürün raftan tamamen temizlendi.")
+                    st.rerun()
+        else:
+            st.warning("Seçilen raf şu anda boş.")
+    else:
+        st.warning("Seçilen raf zaten şu anda tamamen boş.")
+
+# --- 4. YENİ RAF TANIMLA ---
+elif islem == "➕ Yeni Raf Tanımla":
+    st.header("➕ Yeni Ekstra Raf Adresi Oluştur")
+    yeni_raf = st.text_input("Oluşturulacak Raf Adı (Örn: E111):").strip().upper()
+    
+    if st.button("Rafı Sisteme Ekle"):
+        if yeni_raf:
+            if yeni_raf not in depo:
+                depo[yeni_raf] = {}
+                veri_kaydet(data)
+                st.success(f"✅ {yeni_raf} adresi sisteme başarıyla tanımlandı.")
+                st.rerun()
+            else:
+                st.warning(f"⚠️ {yeni_raf} adresi zaten mevcut.")
+        else:
+            st.error("Raf adı boş bırakılamaz.")
+
+# --- 5. KULLANICI YÖNETİMİ ---
+elif islem == "👥 Kullanıcı Yönetimi":
+    st.header("👥 Kullanıcı Hesapları Yönetimi")
+    
+    st.subheader("Yeni Kullanıcı Ekle")
+    yeni_user = st.text_input("Eklenecek Kullanıcı Adı (Küçük harf, Türkçe karaktersiz):").strip().lower()
+    if st.button("Kullanıcıyı Kaydet"):
+        if yeni_user and yeni_user not in kullanicilar and yeni_user != "admin":
+            kullanicilar.append(yeni_user)
+            veri_kaydet(data)
+            st.success(f"✅ '{yeni_user}' kullanıcısı eklendi. (Şifre: '{yeni_user}')")
+            st.rerun()
+        else:
+            st.error("Geçersiz kullanıcı adı veya bu kullanıcı zaten mevcut.")
+            
+    st.write("---")
+    st.subheader("Mevcut Kullanıcı Listesi")
+    if kullanicilar:
+        for idx, user in enumerate(kullanicilar):
+            col_u_name, col_u_del = st.columns([3, 1])
+            with col_u_name:
+                st.write(f"👤 {user.capitalize()} (Şifre: {user})")
+            with col_u_del:
+                if st.button("Sil", key=f"del_{idx}"):
+                    kullanicilar.remove(user)
+                    veri_kaydet(data)
+                    st.warning(f"🗑️ {user.capitalize()} kullanıcısı sistemden silindi.")
+                    st.rerun()
+    else:
+        st.write("Sistemde varsayılan admin dışında ekli kullanıcı yok.")
+
+# --- 6. TÜM DEPO DURUMU ---
+elif islem == "📊 Tüm Depo Durumu":
+    st.header("📊 Anlık Depo Durum Raporu")
+    
+    dolu_raflar = {}
+    for k, v in depo.items():
+        if v and isinstance(v, dict):
+            # İçinde gerçekten dict formatında dolu hammadde var mı?
+            if any(isinstance(h_v, dict) and h_v for h_k, h_v in v.items()):
+                dolu_raflar[k] = v
+    
+    if dolu_raflar:
+        for raf, icerik in sorted(dolu_raflar.items()):
+            with st.expander(f"📦 Raf: {raf} (Dolu)"):
+                raf_tablo = []
+                for hammadde, veriler in icerik.items():
+                    if isinstance(veriler, dict):
+                        for s_key, detay in veriler.items():
+                            raf_tablo.append({
+                                "Hammadde": hammadde,
+                                "Miktar (kg)": detay.get("miktar", 0),
+                                "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
+                            })
+                if raf_tablo:
+                    st.table(raf_tablo)
+                else:
+                    st.write("Bu raf boş.")
+    else:
+        st.write("Depodaki tüm raflar şu anda boş.")
