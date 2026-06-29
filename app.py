@@ -61,7 +61,7 @@ def veri_kaydet(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# --- HAFIZA (SESSION STATE) BAŞLATMA ---
+# --- HAFIZA BAŞLATMA ---
 if "depo_data" not in st.session_state:
     st.session_state.depo_data = veri_yukle()
 if "logged_in" not in st.session_state:
@@ -101,7 +101,7 @@ def logout():
     st.session_state.active_menu = "m1"
     st.rerun()
 
-# --- GİRİŞ KONTROLÜ (FORM DÜZELTİLDİ) ---
+# --- GİRİŞ KONTROLÜ (FORM SUBMIT UYUŞMAZLIĞI DÜZELTİLDİ) ---
 if not st.session_state.logged_in:
     st.set_page_config(page_title="Giriş - Canlı Depo", layout="centered")
     st.title("🏭 Canlı Depo Yönetim Sistemi")
@@ -110,7 +110,7 @@ if not st.session_state.logged_in:
     with st.form("kesin_giris_formu_blok"):
         username_input = st.text_input("Kullanıcı Adı")
         password_input = st.text_input("Şifre", type="password")
-        # FIX: Hatalı st.button yerine st.form_submit_button getirildi
+        # ÇÖZÜM: st.button yerine form ile uyumlu st.form_submit_button kullanıldı
         submit_login = st.form_submit_button("Giriş Yap", use_container_width=True)
         
         if submit_login:
@@ -168,7 +168,7 @@ if st.sidebar.button("📜 Depo Hareket Geçmişi", use_container_width=True):
     st.session_state.active_menu = "m7"
     st.rerun()
 
-# --- SAYFA İÇERİKLERİ ---
+# --- AKTİF MENÜ İÇERİKLERİ ---
 
 # 1. ARAMA & SORGULAMA
 if st.session_state.active_menu == "m1":
@@ -181,4 +181,19 @@ if st.session_state.active_menu == "m1":
             bulundu = False
             sonuclar = []
             for raf, icerik in depo.items():
-                if isinstance(icerik, dict) and arama_kelimesi in ic
+                if isinstance(icerik, dict) and arama_kelimesi in icerik:
+                    if isinstance(icerik[arama_kelimesi], dict):
+                        for k_key, detay in icerik[arama_kelimesi].items():
+                            sonuclar.append({
+                                "Raf Adresi": raf,
+                                "Miktar (kg)": detay.get("miktar", 0),
+                                "LOT No": detay.get("lot", "Girilmedi"),
+                                "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
+                            })
+                            bulundu = True
+            if bulundu:
+                st.table(sonuclar)
+            else:
+                st.error(f"❌ Depoda '{arama_kelimesi}' isimli bir hammadde bulunamadı.")
+
+    elif arama_turu == "Rafa Göre Ara":
