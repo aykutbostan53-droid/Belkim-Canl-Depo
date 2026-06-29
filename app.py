@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as St
 import json
 import os
 import time
@@ -7,7 +7,6 @@ from datetime import datetime
 # --- VERİ TABANI AYARLARI ---
 DB_FILE = "depo_lot_skt_nihai_v1.json"
 
-# Excel'den gelen tüm raf adresleri
 EXCEL_RAFLARI = [
     "A111", "A112", "A113", "A121", "A122", "A123", "A131", "A132", "A133",
     "A211", "A212", "A213", "A221", "A222", "A223", "A231", "A232", "A233",
@@ -49,10 +48,6 @@ def veri_yukle():
         for raf in EXCEL_RAFLARI:
             if raf not in mevcut_veri["stok"] or not isinstance(mevcut_veri["stok"][raf], dict):
                 mevcut_veri["stok"][raf] = {}
-            else:
-                for hmd in list(mevcut_veri["stok"][raf].keys()):
-                    if not isinstance(mevcut_veri["stok"][raf][hmd], dict):
-                        mevcut_veri["stok"][raf][hmd] = {}
         return mevcut_veri
     
     return {
@@ -71,8 +66,6 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "user_display_name" not in st.session_state:
     st.session_state.user_display_name = ""
-if "token" not in st.session_state:
-    st.session_state.token = str(time.time()) # Bu cihaza özel geçici anahtar
 if "basari_mesaji" not in st.session_state:
     st.session_state.basari_mesaji = None
 if "uyari_mesaji" not in st.session_state:
@@ -80,46 +73,33 @@ if "uyari_mesaji" not in st.session_state:
 if "active_menu" not in st.session_state:
     st.session_state.active_menu = "m1"
 
-# Dosyadan en taze veriyi anlık çek
 global_data = veri_yukle()
 depo = global_data["stok"]
 kullanicilar = global_data["kullanicilar"]
 gecmis_loglari = global_data.get("gecmis", [])
 aktif_oturumlar = global_data.get("aktif_oturumlar", {})
 
-# Oturum Güvenlik Zırhı: Eğer kullanıcı giriş yapmışsa ama veritabanında token çakışıyorsa (başka biri girdiyse) otomatik at
-if st.session_state.logged_in:
-    u_lower = st.session_state.user_display_name.lower()
-    if aktif_oturumlar.get(u_lower) != st.session_state.token:
-        st.session_state.logged_in = False
-        st.session_state.user_display_name = ""
-        st.error("⚠️ Oturumunuz Kapatıldı: Bu hesaba başka bir cihazdan giriş yapıldı!")
-        st.toast("Başka cihaz girişi algılandı.", icon="🚨")
-        time.sleep(2)
-        st.rerun()
-
 def login(username, password):
     u_clean = username.strip().lower()
     p_clean = password.strip()
     
-    # Çift Giriş Engelleme Mantığı
     temp_data = veri_yukle()
     current_sessions = temp_data.get("aktif_oturumlar", {})
     
-    if u_clean in current_sessions and current_sessions[u_clean] != st.session_state.token:
-        st.error("❌ Giriş Engellendi: Bu kullanıcı hesabı şu an başka bir operatör tarafından aktif olarak kullanılıyor!")
+    # Sadece giriş esnasında başka birinin tarayıcısında açık olup olmadığını kontrol et
+    if u_clean in current_sessions and u_clean != "admin":
+        st.error(f"❌ Bu hesap şu an başka bir cihazda aktif görünüyor! (Giriş: {current_sessions[u_clean]})")
+        st.info("Eğer açık sekme kalmadıysa, Admin kullanıcısından oturumu sıfırlamasını isteyebilirsiniz.")
         return
 
     if u_clean == "admin" and p_clean == "belkim41":
         st.session_state.logged_in = True
         st.session_state.user_display_name = "Admin"
-        temp_data["aktif_oturumlar"][u_clean] = st.session_state.token
-        veri_kaydet(temp_data)
         st.rerun()
     elif u_clean in kullanicilar and p_clean == u_clean:
         st.session_state.logged_in = True
         st.session_state.user_display_name = u_clean.capitalize()
-        temp_data["aktif_oturumlar"][u_clean] = st.session_state.token
+        temp_data["aktif_oturumlar"][u_clean] = datetime.now().strftime("%H:%M")
         veri_kaydet(temp_data)
         st.rerun()
     else:
@@ -150,6 +130,26 @@ if not st.session_state.logged_in:
         
         if submit_login:
             login(username_input, password_input)
+            
+    # --- ADMIN İÇİN OTURUM SIFIRLAMA PANELİ ---
+    st.write("---")
+    with st.expander("🔑 Yönetici: Kilitli Oturumları Sıfırla"):
+        admin_pass = st.text_input("Yönetici Şifresi:", type="password", key="admin_reset_pass")
+        if admin_pass == "belkim41":
+            t_sessions = veri_yukle().get("aktif_oturumlar", {})
+            if t_sessions:
+                st.write("Şu an aktif/kilitli görünen hesaplar:")
+                for u_sess in list(t_sessions.keys()):
+                    if st.button(f"❌ {u_sess.capitalize()} Oturumunu Kapat/Sıfırla", key=f"reset_{u_sess}"):
+                        t_data = veri_yukle()
+                        if u_sess in t_data.get("aktif_oturumlar", {}):
+                            del t_data["aktif_oturumlar"][u_sess]
+                        veri_kaydet(t_data)
+                        st.success(f"{u_sess.capitalize()} oturumu sıfırlandı!")
+                        time.sleep(1)
+                        st.rerun()
+            else:
+                st.info("Şu an kilitli veya aktif hiçbir kullanıcı oturumu yok.")
     st.stop()
 
 # --- ANA UYGULAMA ARAYÜZÜ ---
@@ -204,7 +204,7 @@ if st.sidebar.button("📜 Depo Hareket Geçmişi", use_container_width=True):
     st.rerun()
 
 
-# --- ANLIK CANLI VERİ YENİLEME FRAGMENTİ (3 Saniyede bir arka planda dosyayı okur) ---
+# --- ANLIK CANLI VERİ YENİLEME FRAGMENTLERİ ---
 @st.fragment(run_every=3)
 def canlı_raf_durumu_goster(raf_adi, mod="tablo"):
     taze_data = veri_yukle()
@@ -349,7 +349,6 @@ elif st.session_state.active_menu == "m3":
     canlı_raf_durumu_goster(hedef_raf, mod="tablo")
     st.write("---")
     
-    # İşlem yapılacak taze veriyi çek
     t_m3_data = veri_yukle()
     gecerli_hammadde_listesi = [k for k, v in t_m3_data["stok"][hedef_raf].items() if isinstance(v, dict) and v]
     
