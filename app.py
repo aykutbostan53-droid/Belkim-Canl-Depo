@@ -29,39 +29,59 @@ def veri_yukle():
     if os.path.exists(DB_FILE):
         with open(DB_FILE, "r", encoding="utf-8") as f:
             mevcut_veri = json.load(f)
-        # Excel'deki yeni eklenen boş rafları sisteme entegre et
+        
+        # Eğer yapıda 'stok' veya 'kullanicilar' anahtarı yoksa eski yapıdan yeni yapıya dönüştür
+        if "stok" not in mevcut_veri:
+            eski_veri = mevcut_veri.copy()
+            mevcut_veri = {
+                "stok": eski_veri,
+                "kullanicilar": ["sinem", "vedat", "halim", "yasin"]  # Varsayılan başlangıç listesi
+            }
+        
+        # Boş rafları kontrol et ve ekle
         for raf in EXCEL_RAFLARI:
-            if raf not in mevcut_veri:
-                mevcut_veri[raf] = {}
+            if raf not in mevcut_veri["stok"]:
+                mevcut_veri["stok"][raf] = {}
         return mevcut_veri
     
-    # Veri tabanı ilk kez oluşuyorsa Excel listesini taban al
-    return {raf: {} for raf in EXCEL_RAFLARI}
+    # Sıfırdan kuruluyorsa varsayılan yapı
+    return {
+        "stok": {raf: {} for raf in EXCEL_RAFLARI},
+        "kullanicilar": ["sinem", "vedat", "halim", "yasin"]
+    }
 
-def veri_kaydet(depo):
+def veri_kaydet(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(depo, f, ensure_ascii=False, indent=4)
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
-if "depo" not in st.session_state:
-    st.session_state.depo = veri_yukle()
+if "depo_data" not in st.session_state:
+    st.session_state.depo_data = veri_yukle()
 
-depo = st.session_state.depo
+data = st.session_state.depo_data
+depo = data["stok"]
+kullanicilar = data["kullanicilar"]
 
 # --- KULLANICI DOĞRULAMA (LOGIN) SİSTEMİ ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+    st.session_state.user_display_name = ""
     st.session_state.role = None
 
 def login(username, password):
-    if username == "admin" and password == "belkim41":
+    u_clean = username.strip().lower()
+    p_clean = password.strip()
+    
+    if u_clean == "admin" and p_clean == "belkim41":
         st.session_state.logged_in = True
         st.session_state.role = "Admin"
+        st.session_state.user_display_name = "Yönetici (Admin)"
         st.success("Yönetici girişi başarılı!")
         st.rerun()
-    elif username == "operator" and password == "depo123":
+    elif u_clean in kullanicilar and p_clean == u_clean:
         st.session_state.logged_in = True
         st.session_state.role = "Operatör"
-        st.success("Kullanıcı girişi başarılı!")
+        st.session_state.user_display_name = u_clean.capitalize()
+        st.success(f"Giriş başarılı! Hoş geldin, {st.session_state.user_display_name}.")
         st.rerun()
     else:
         st.error("Hatalı kullanıcı adı veya şifre!")
@@ -69,6 +89,7 @@ def login(username, password):
 def logout():
     st.session_state.logged_in = False
     st.session_state.role = None
+    st.session_state.user_display_name = ""
     st.rerun()
 
 # --- GİRİŞ EKRANI ARAYÜZÜ ---
@@ -91,7 +112,7 @@ col_title, col_user = st.columns([4, 1])
 with col_title:
     st.title("🏭 Canlı Depo ve Hammadde Takip Sistemi")
 with col_user:
-    st.write(f"👤 Rol: **{st.session_state.role}**")
+    st.write(f"👤 Kullanıcı: **{st.session_state.user_display_name}**")
     if st.button("Çıkış Yap"):
         logout()
 
@@ -102,7 +123,7 @@ st.sidebar.header("⚙️ Depo İşlemleri")
 if st.session_state.role == "Operatör":
     menü_secenekleri = ["🔍 Arama & Sorgulama", "📊 Tüm Depo Durumu"]
 else:
-    menü_secenekleri = ["🔍 Arama & Sorgulama", "📥 Stok Ekle / Güncelle", "📤 Stok Çıkar / Azalt / Sil", "➕ Yeni Raf Tanımla", "📊 Tüm Depo Durumu"]
+    menü_secenekleri = ["🔍 Arama & Sorgulama", "📥 Stok Ekle / Güncelle", "📤 Stok Çıkar / Azalt / Sil", "➕ Yeni Raf Tanımla", "👥 Kullanıcı Yönetimi", "📊 Tüm Depo Durumu"]
 
 islem = st.sidebar.radio("Bir işlem seçin:", menü_secenekleri)
 
@@ -165,13 +186,12 @@ elif islem == "📥 Stok Ekle / Güncelle" and st.session_state.role == "Admin":
             if hammadde_adi not in depo[hedef_raf]:
                 depo[hedef_raf][hammadde_adi] = {}
             
-            # Aynı SKT'ye sahip ürün varsa üzerine ekle, yoksa yeni SKT grubu aç
             if skt_tarihi in depo[hedef_raf][hammadde_adi]:
                 depo[hedef_raf][hammadde_adi][skt_tarihi]["miktar"] += miktar
             else:
                 depo[hedef_raf][hammadde_adi][skt_tarihi] = {"miktar": miktar, "skt": skt_tarihi}
                 
-            veri_kaydet(depo)
+            veri_kaydet(data)
             st.success(f"✅ {hedef_raf} rafına {miktar} kg {hammadde_adi} (SKT: {skt_tarihi}) başarıyla eklendi!")
         else:
             st.error("Lütfen hammadde adı girin.")
@@ -195,14 +215,12 @@ elif islem == "📤 Stok Çıkar / Azalt / Sil" and st.session_state.role == "Ad
         with col1:
             if st.button("Seçilen Miktarı Stoktan Düş", use_container_width=True):
                 depo[hedef_raf][hammadde_adi][secilen_skt]["miktar"] -= cikarilacak_miktar
-                # Eğer miktar 0 olduysa o SKT kaydını sil
                 if depo[hedef_raf][hammadde_adi][secilen_skt]["miktar"] <= 0:
                     del depo[hedef_raf][hammadde_adi][secilen_skt]
-                # Eğer hammaddenin hiç SKT kaydı kalmadıysa hammaddeyi raftan tamamen sil
                 if not depo[hedef_raf][hammadde_adi]:
                     del depo[hedef_raf][hammadde_adi]
                     
-                veri_kaydet(depo)
+                veri_kaydet(data)
                 st.success(f"📉 Raftan {cikarilacak_miktar} kg düşüldü.")
                 st.rerun()
                 
@@ -211,7 +229,7 @@ elif islem == "📤 Stok Çıkar / Azalt / Sil" and st.session_state.role == "Ad
                 del depo[hedef_raf][hammadde_adi][secilen_skt]
                 if not depo[hedef_raf][hammadde_adi]:
                     del depo[hedef_raf][hammadde_adi]
-                veri_kaydet(depo)
+                veri_kaydet(data)
                 st.warning("🗑️ Ürün raftan tamamen temizlendi.")
                 st.rerun()
     else:
@@ -226,7 +244,7 @@ elif islem == "➕ Yeni Raf Tanımla" and st.session_state.role == "Admin":
         if yeni_raf:
             if yeni_raf not in depo:
                 depo[yeni_raf] = {}
-                veri_kaydet(depo)
+                veri_kaydet(data)
                 st.success(f"✅ {yeni_raf} adresi sisteme başarıyla tanımlandı.")
                 st.rerun()
             else:
@@ -234,7 +252,38 @@ elif islem == "➕ Yeni Raf Tanımla" and st.session_state.role == "Admin":
         else:
             st.error("Raf adı boş bırakılamaz.")
 
-# --- 5. TÜM DEPO DURUMU ---
+# --- 5. KULLANICI YÖNETİMİ (YALNIZCA ADMIN) ---
+elif islem == "👥 Kullanıcı Yönetimi" and st.session_state.role == "Admin":
+    st.header("👥 Kullanıcı Hesapları Yönetimi")
+    
+    st.subheader("Yeni Kullanıcı Ekle")
+    yeni_user = st.text_input("Eklenecek Kullanıcı Adı (Küçük harf, Türkçe karaktersiz):").strip().lower()
+    if st.button("Kullanıcıyı Kaydet"):
+        if yeni_user and yeni_user not in kullanicilar and yeni_user != "admin":
+            kullanicilar.append(yeni_user)
+            veri_kaydet(data)
+            st.success(f"✅ '{yeni_user}' kullanıcısı eklendi. (Şifresi de otomatik olarak '{yeni_user}' olmuştur.)")
+            st.rerun()
+        else:
+            st.error("Geçersiz kullanıcı adı veya bu kullanıcı zaten mevcut.")
+            
+    st.write("---")
+    st.subheader("Mevcut Kullanıcı Listesi")
+    if kullanicilar:
+        for idx, user in enumerate(kullanicilar):
+            col_u_name, col_u_del = st.columns([3, 1])
+            with col_u_name:
+                st.write(f"👤 {user.capitalize()} (Şifre: {user})")
+            with col_u_del:
+                if st.button("Sil", key=f"del_{idx}"):
+                    kullanicilar.remove(user)
+                    veri_kaydet(data)
+                    st.warning(f"🗑️ {user.capitalize()} kullanıcısı sistemden silindi.")
+                    st.rerun()
+    else:
+        st.write("Sistemde admin dışında tanımlı kullanıcı yok.")
+
+# --- 6. TÜM DEPO DURUMU ---
 elif islem == "📊 Tüm Depo Durumu":
     st.header("📊 Anlık Depo Durum Raporu")
     dolu_raflar = {k: v for k, v in depo.items() if v}
