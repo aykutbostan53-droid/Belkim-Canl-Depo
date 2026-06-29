@@ -30,21 +30,18 @@ def veri_yukle():
         with open(DB_FILE, "r", encoding="utf-8") as f:
             mevcut_veri = json.load(f)
         
-        # Eğer yapıda 'stok' veya 'kullanicilar' anahtarı yoksa eski yapıdan yeni yapıya dönüştür
         if "stok" not in mevcut_veri:
             eski_veri = mevcut_veri.copy()
             mevcut_veri = {
                 "stok": eski_veri,
-                "kullanicilar": ["sinem", "vedat", "halim", "yasin"]  # Varsayılan başlangıç listesi
+                "kullanicilar": ["sinem", "vedat", "halim", "yasin"]
             }
         
-        # Boş rafları kontrol et ve ekle
         for raf in EXCEL_RAFLARI:
             if raf not in mevcut_veri["stok"]:
                 mevcut_veri["stok"][raf] = {}
         return mevcut_veri
     
-    # Sıfırdan kuruluyorsa varsayılan yapı
     return {
         "stok": {raf: {} for raf in EXCEL_RAFLARI},
         "kullanicilar": ["sinem", "vedat", "halim", "yasin"]
@@ -65,7 +62,6 @@ kullanicilar = data["kullanicilar"]
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_display_name = ""
-    st.session_state.role = None
 
 def login(username, password):
     u_clean = username.strip().lower()
@@ -73,13 +69,11 @@ def login(username, password):
     
     if u_clean == "admin" and p_clean == "belkim41":
         st.session_state.logged_in = True
-        st.session_state.role = "Admin"
         st.session_state.user_display_name = "Yönetici (Admin)"
-        st.success("Yönetici girişi başarılı!")
+        st.success("Giriş başarılı!")
         st.rerun()
     elif u_clean in kullanicilar and p_clean == u_clean:
         st.session_state.logged_in = True
-        st.session_state.role = "Operatör"
         st.session_state.user_display_name = u_clean.capitalize()
         st.success(f"Giriş başarılı! Hoş geldin, {st.session_state.user_display_name}.")
         st.rerun()
@@ -88,7 +82,6 @@ def login(username, password):
 
 def logout():
     st.session_state.logged_in = False
-    st.session_state.role = None
     st.session_state.user_display_name = ""
     st.rerun()
 
@@ -112,18 +105,22 @@ col_title, col_user = st.columns([4, 1])
 with col_title:
     st.title("🏭 Canlı Depo ve Hammadde Takip Sistemi")
 with col_user:
-    st.write(f"👤 Kullanıcı: **{st.session_state.user_display_name}**")
+    st.write(f"👤 Giriş Yapan: **{st.session_state.user_display_name}**")
     if st.button("Çıkış Yap"):
         logout()
 
 st.write("---")
 
-# --- MENÜ SEÇENEKLERİ ---
+# --- MENÜ SEÇENEKLERİ (HERKES İÇİN TÜM YETKİLER AÇIK) ---
 st.sidebar.header("⚙️ Depo İşlemleri")
-if st.session_state.role == "Operatör":
-    menü_secenekleri = ["🔍 Arama & Sorgulama", "📊 Tüm Depo Durumu"]
-else:
-    menü_secenekleri = ["🔍 Arama & Sorgulama", "📥 Stok Ekle / Güncelle", "📤 Stok Çıkar / Azalt / Sil", "➕ Yeni Raf Tanımla", "👥 Kullanıcı Yönetimi", "📊 Tüm Depo Durumu"]
+menü_secenekleri = [
+    "🔍 Arama & Sorgulama", 
+    "📥 Stok Ekle / Güncelle", 
+    "📤 Stok Çıkar / Azalt / Sil", 
+    "➕ Yeni Raf Tanımla", 
+    "👥 Kullanıcı Yönetimi", 
+    "📊 Tüm Depo Durumu"
+]
 
 islem = st.sidebar.radio("Bir işlem seçin:", menü_secenekleri)
 
@@ -169,8 +166,8 @@ if islem == "🔍 Arama & Sorgulama":
         else:
             st.warning("Bu raf şu anda boş.")
 
-# --- 2. STOK GİRİŞİ (ADMIN) ---
-elif islem == "📥 Stok Ekle / Güncelle" and st.session_state.role == "Admin":
+# --- 2. STOK GİRİŞİ ---
+elif islem == "📥 Stok Ekle / Güncelle":
     st.header("📥 Rafa Malzeme Girişi")
     hedef_raf = st.selectbox("Malzemenin Konulacağı Raf:", sorted(list(depo.keys())))
     hammadde_adi = st.text_input("Hammadde Adı:").strip().upper()
@@ -196,109 +193,7 @@ elif islem == "📥 Stok Ekle / Güncelle" and st.session_state.role == "Admin":
         else:
             st.error("Lütfen hammadde adı girin.")
 
-# --- 3. STOK ÇIKAR / SİL (ADMIN) ---
-elif islem == "📤 Stok Çıkar / Azalt / Sil" and st.session_state.role == "Admin":
+# --- 3. STOK SİL / AZALT ---
+elif islem == "📤 Stok Çıkar / Azalt / Sil":
     st.header("📤 Raftan Malzeme Çıkarma / Azaltma")
-    hedef_raf = st.selectbox("Malzemenin Çıkarılacağı Raf:", sorted(list(depo.keys())))
-    
-    if depo[hedef_raf]:
-        hammadde_adi = st.selectbox("Çıkarılacak Hammaddeyi Seçin:", list(depo[hedef_raf].keys()))
-        skt_listesi = list(depo[hedef_raf][hammadde_adi].keys())
-        secilen_skt = st.selectbox("Hangi SKT'li Ürün Çıkarılacak?", skt_listesi)
-        
-        mevcut_miktar = depo[hedef_raf][hammadde_adi][secilen_skt]["miktar"]
-        st.info(f"💡 Bu rafta seçilen üründen şu an **{mevcut_miktar} kg** var.")
-        
-        cikarilacak_miktar = st.number_input("Çıkarılacak/Azaltılacak Miktar (kg):", min_value=1, max_value=int(mevcut_miktar), step=1)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Seçilen Miktarı Stoktan Düş", use_container_width=True):
-                depo[hedef_raf][hammadde_adi][secilen_skt]["miktar"] -= cikarilacak_miktar
-                if depo[hedef_raf][hammadde_adi][secilen_skt]["miktar"] <= 0:
-                    del depo[hedef_raf][hammadde_adi][secilen_skt]
-                if not depo[hedef_raf][hammadde_adi]:
-                    del depo[hedef_raf][hammadde_adi]
-                    
-                veri_kaydet(data)
-                st.success(f"📉 Raftan {cikarilacak_miktar} kg düşüldü.")
-                st.rerun()
-                
-        with col2:
-            if st.button("Bu Ürünü Raftan Tamamen Sil", use_container_width=True):
-                del depo[hedef_raf][hammadde_adi][secilen_skt]
-                if not depo[hedef_raf][hammadde_adi]:
-                    del depo[hedef_raf][hammadde_adi]
-                veri_kaydet(data)
-                st.warning("🗑️ Ürün raftan tamamen temizlendi.")
-                st.rerun()
-    else:
-        st.warning("Seçilen raf zaten şu anda tamamen boş.")
-
-# --- 4. YENİ RAF TANIMLA (ADMIN) ---
-elif islem == "➕ Yeni Raf Tanımla" and st.session_state.role == "Admin":
-    st.header("➕ Yeni Ekstra Raf Adresi Oluştur")
-    yeni_raf = st.text_input("Oluşturulacak Raf Adı (Örn: E111):").strip().upper()
-    
-    if st.button("Rafı Sisteme Ekle"):
-        if yeni_raf:
-            if yeni_raf not in depo:
-                depo[yeni_raf] = {}
-                veri_kaydet(data)
-                st.success(f"✅ {yeni_raf} adresi sisteme başarıyla tanımlandı.")
-                st.rerun()
-            else:
-                st.warning(f"⚠️ {yeni_raf} adresi zaten mevcut.")
-        else:
-            st.error("Raf adı boş bırakılamaz.")
-
-# --- 5. KULLANICI YÖNETİMİ (YALNIZCA ADMIN) ---
-elif islem == "👥 Kullanıcı Yönetimi" and st.session_state.role == "Admin":
-    st.header("👥 Kullanıcı Hesapları Yönetimi")
-    
-    st.subheader("Yeni Kullanıcı Ekle")
-    yeni_user = st.text_input("Eklenecek Kullanıcı Adı (Küçük harf, Türkçe karaktersiz):").strip().lower()
-    if st.button("Kullanıcıyı Kaydet"):
-        if yeni_user and yeni_user not in kullanicilar and yeni_user != "admin":
-            kullanicilar.append(yeni_user)
-            veri_kaydet(data)
-            st.success(f"✅ '{yeni_user}' kullanıcısı eklendi. (Şifresi de otomatik olarak '{yeni_user}' olmuştur.)")
-            st.rerun()
-        else:
-            st.error("Geçersiz kullanıcı adı veya bu kullanıcı zaten mevcut.")
-            
-    st.write("---")
-    st.subheader("Mevcut Kullanıcı Listesi")
-    if kullanicilar:
-        for idx, user in enumerate(kullanicilar):
-            col_u_name, col_u_del = st.columns([3, 1])
-            with col_u_name:
-                st.write(f"👤 {user.capitalize()} (Şifre: {user})")
-            with col_u_del:
-                if st.button("Sil", key=f"del_{idx}"):
-                    kullanicilar.remove(user)
-                    veri_kaydet(data)
-                    st.warning(f"🗑️ {user.capitalize()} kullanıcısı sistemden silindi.")
-                    st.rerun()
-    else:
-        st.write("Sistemde admin dışında tanımlı kullanıcı yok.")
-
-# --- 6. TÜM DEPO DURUMU ---
-elif islem == "📊 Tüm Depo Durumu":
-    st.header("📊 Anlık Depo Durum Raporu")
-    dolu_raflar = {k: v for k, v in depo.items() if v}
-    
-    if dolu_raflar:
-        for raf, icerik in sorted(dolu_raflar.items()):
-            with st.expander(f"📦 Raf: {raf} (Dolu)"):
-                raf_tablo = []
-                for hammadde, veriler in icerik.items():
-                    for s_key, detay in veriler.items():
-                        raf_tablo.append({
-                            "Hammadde": hammadde,
-                            "Miktar (kg)": detay["miktar"],
-                            "Son Kullanma Tarihi": detay["skt"]
-                        })
-                st.table(raf_tablo)
-    else:
-        st.write("Depodaki tüm raflar şu anda boş.")
+    hedef
