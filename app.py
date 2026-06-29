@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 
 # --- VERİ TABANI AYARLARI ---
-DB_FILE = "depo_verisi.json"
+DB_FILE = "depo_sistemi.json"
 
 # Excel'den gelen tüm raf adresleri
 EXCEL_RAFLARI = [
