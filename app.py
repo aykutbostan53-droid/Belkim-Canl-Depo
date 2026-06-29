@@ -98,7 +98,7 @@ def login(username, password):
 def logout():
     st.session_state.logged_in = False
     st.session_state.user_display_name = ""
-    st.session_state.active_menu = "m1"
+    st.active_menu = "m1"
     st.rerun()
 
 # --- GİRİŞ KONTROLÜ ---
@@ -183,7 +183,7 @@ if st.session_state.active_menu == "m1":
                         for k_key, detay in icerik[arama_kelimesi].items():
                             sonuclar.append({
                                 "Raf Adresi": raf,
-                                "Miktar (kg)": detay.get("miktar", 0.0),
+                                "Miktar (kg)": round(detay.get("miktar", 0.0), 1), # GÖRSEL FIX
                                 "LOT No": detay.get("lot", "Girilmedi"),
                                 "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
                             })
@@ -203,7 +203,7 @@ if st.session_state.active_menu == "m1":
                     for k_key, detay in veriler.items():
                         raf_icerik.append({
                             "Hammadde": hammadde,
-                            "Miktar (kg)": detay.get("miktar", 0.0),
+                            "Miktar (kg)": round(detay.get("miktar", 0.0), 1), # GÖRSEL FIX
                             "LOT No": detay.get("lot", "Girilmedi"),
                             "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
                         })
@@ -227,7 +227,7 @@ elif st.session_state.active_menu == "m2":
                 for k_key, detay in veriler.items():
                     mevcut_icerik.append({
                         "Hammadde": hmd,
-                        "Miktar (kg)": detay.get("miktar", 0.0),
+                        "Miktar (kg)": round(detay.get("miktar", 0.0), 1), # GÖRSEL FIX
                         "LOT No": detay.get("lot", "Girilmedi"),
                         "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
                     })
@@ -238,8 +238,8 @@ elif st.session_state.active_menu == "m2":
     st.write("---")
 
     hammadde_adi = st.text_input("Giriş Yapılacak Hammadde Adı:").strip().upper()
-    # Giriş miktarını da ondalıklı (float) yapabilmek için min_value ve step ayarlandı
-    miktar = st.number_input("Eklenecek Miktar (kg):", min_value=0.01, step=0.1, format="%.2f")
+    # GÖRSEL FIX: format="%.1f" ve step=0.1 ile tek basamak yapıldı
+    miktar = st.number_input("Eklenecek Miktar (kg):", min_value=0.1, step=0.1, format="%.1f")
     
     lot_opsiyon = st.checkbox("LOT Numarası Girmek İstiyorum")
     lot_no = "Girilmedi"
@@ -264,17 +264,20 @@ elif st.session_state.active_menu == "m2":
             else:
                 depo[hedef_raf][hammadde_adi][parti_anahtari] = {"miktar": miktar, "lot": lot_no, "skt": skt_tarihi}
             
+            # Kaydetmeden önce veriyi tek basamağa yuvarla
+            depo[hedef_raf][hammadde_adi][parti_anahtari]["miktar"] = round(depo[hedef_raf][hammadde_adi][parti_anahtari]["miktar"], 1)
+            
             zaman_damgasi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            log_mesaji = f"📥 GİRİŞ YAPILDI -> {st.session_state.user_display_name} tarafından {hedef_raf} rafına {miktar} kg {hammadde_adi} (LOT: {lot_no} | SKT: {skt_tarihi}) eklendi."
+            log_mesaji = f"📥 GİRİŞ YAPILDI -> {st.session_state.user_display_name} tarafından {hedef_raf} rafına {round(miktar, 1)} kg {hammadde_adi} (LOT: {lot_no} | SKT: {skt_tarihi}) eklendi."
             gecmis_loglari.insert(0, {"tarih": zaman_damgasi, "islem": log_mesaji})
             
             veri_kaydet(data)
-            st.session_state.basari_mesaji = f"✅ İŞLEM BAŞARILI: {hedef_raf} rafına {miktar} kg {hammadde_adi} (LOT: {lot_no}) giriş yapıldı."
+            st.session_state.basari_mesaji = f"✅ İŞLEM BAŞARILI: {hedef_raf} rafına {round(miktar, 1)} kg {hammadde_adi} (LOT: {lot_no}) giriş yapıldı."
             st.rerun()
         else:
             st.error("Lütfen hammadde adı girin.")
 
-# 3. STOK SİL / AZALT (ONDALIKLI/KÜSURATLI DÜŞÜŞ DESTEĞİ)
+# 3. STOK SİL / AZALT
 elif st.session_state.active_menu == "m3":
     st.header("📤 Raftan Malzeme Çıkarma / Azaltma")
     hedef_raf = st.selectbox("Malzemenin Çıkarılacağı Raf:", sorted(list(depo.keys())))
@@ -287,7 +290,7 @@ elif st.session_state.active_menu == "m3":
                 for k_key, detay in veriler.items():
                     raf_listesi.append({
                         "Hammadde": hmd,
-                        "Miktar (kg)": detay.get("miktar", 0.0),
+                        "Miktar (kg)": round(detay.get("miktar", 0.0), 1), # GÖRSEL FIX
                         "LOT No": detay.get("lot", "Girilmedi"),
                         "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
                     })
@@ -304,7 +307,7 @@ elif st.session_state.active_menu == "m3":
             for p_key, p_val in depo[hedef_raf][hammadde_adi].items():
                 p_lot = p_val.get('lot', 'Girilmedi')
                 p_skt = p_val.get('skt', 'Girilmedi')
-                p_mik = p_val.get('miktar', 0.0)
+                p_mik = round(p_val.get('miktar', 0.0), 1) # GÖRSEL FIX
                 etiket = f"Miktar: {p_mik} kg | LOT: {p_lot} | SKT: {p_skt}"
                 parti_secenekleri[p_key] = etiket
             
@@ -313,12 +316,11 @@ elif st.session_state.active_menu == "m3":
                 
             secilen_parti_key = st.selectbox("Düşüş Yapılacak LOT / SKT Seçimi:", options=list(parti_secenekleri.keys()), format_func=lambda x: parti_secenekleri[x])
             
-            mevcut_miktar = float(depo[hedef_raf][hammadde_adi][secilen_parti_key].get("miktar", 0.0))
+            mevcut_miktar = round(float(depo[hedef_raf][hammadde_adi][secilen_parti_key].get("miktar", 0.0)), 1)
             secilen_lot_no = depo[hedef_raf][hammadde_adi][secilen_parti_key].get("lot", "Girilmedi")
             secilen_skt_no = depo[hedef_raf][hammadde_adi][secilen_parti_key].get("skt", "Girilmedi")
             
-            # ESNEK KONTROL: float tabanlı esnek üst sınır tanımı yapıldı
-            if mevcut_miktar <= 0.009:
+            if mevcut_miktar <= 0.09:
                 st.error(f"⚠️ Bu lottaki miktar düşüş yapmak için yetersiz ({mevcut_miktar} kg). Lütfen sağdaki buton ile tamamen silin.")
                 if st.button("Bu Ürünü Raftan Tamamen Sil (Miktar Yetersiz)", use_container_width=True):
                     zaman_damgasi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -331,26 +333,26 @@ elif st.session_state.active_menu == "m3":
                     st.session_state.uyari_mesaji = "🗑️ Kayıt tamamen temizlendi."
                     st.rerun()
             else:
-                # DEĞİŞİKLİK: min_value=0.01 yapıldı, step=0.1 ve format eklendi. İstediğiniz ondalıklı sayıyı yazabilirsiniz.
-                cikarilacak_miktar = st.number_input("Çıkarılacak/Azaltılacak Miktar (kg):", min_value=0.01, max_value=mevcut_miktar, step=0.1, format="%.2f")
+                # GÖRSEL FIX: format="%.1f" ve step=0.1 ile tek basamak yapıldı
+                cikarilacak_miktar = st.number_input("Çıkarılacak/Azaltılacak Miktar (kg):", min_value=0.1, max_value=mevcut_miktar, step=0.1, format="%.1f")
                 
                 col1, col2 = st.columns(2)
                 with col1:
                     if st.button("Seçilen Miktarı Stoktan Düş", use_container_width=True):
                         depo[hedef_raf][hammadde_adi][secilen_parti_key]["miktar"] -= cikarilacak_miktar
+                        depo[hedef_raf][hammadde_adi][secilen_parti_key]["miktar"] = round(depo[hedef_raf][hammadde_adi][secilen_parti_key]["miktar"], 1)
                         
                         zaman_damgasi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        log_mesaji = f"📤 ÇIKIŞ YAPILDI -> {st.session_state.user_display_name} tarafından {hedef_raf} rafından {cikarilacak_miktar} kg {hammadde_adi} (LOT: {secilen_lot_no} | SKT: {secilen_skt_no}) düşüldü."
+                        log_mesaji = f"📤 ÇIKIŞ YAPILDI -> {st.session_state.user_display_name} tarafından {hedef_raf} rafından {round(cikarilacak_miktar, 1)} kg {hammadde_adi} (LOT: {secilen_lot_no} | SKT: {secilen_skt_no}) düşüldü."
                         gecmis_loglari.insert(0, {"tarih": zaman_damgasi, "islem": log_mesaji})
                         
-                        # Hassasiyet kaybını önlemek için çok küçük değerleri otomatik sıfırlıyoruz (Örn: 0.0001 kg kalması durumu)
-                        if depo[hedef_raf][hammadde_adi][secilen_parti_key]["miktar"] <= 0.009:
+                        if depo[hedef_raf][hammadde_adi][secilen_parti_key]["miktar"] <= 0.09:
                             del depo[hedef_raf][hammadde_adi][secilen_parti_key]
                         if not depo[hedef_raf][hammadde_adi]:
                             del depo[hedef_raf][hammadde_adi]
                             
                         veri_kaydet(data)
-                        st.session_state.basari_mesaji = f"📉 İŞLEM BAŞARILI: {hedef_raf} rafından {cikarilacak_miktar} kg {hammadde_adi} (LOT: {secilen_lot_no}) çıkış yapıldı."
+                        st.session_state.basari_mesaji = f"📉 İŞLEM BAŞARILI: {hedef_raf} rafından {round(cikarilacak_miktar, 1)} kg {hammadde_adi} (LOT: {secilen_lot_no}) çıkış yapıldı."
                         st.rerun()
                         
                 with col2:
@@ -433,7 +435,7 @@ elif st.session_state.active_menu == "m6":
                         for k_key, detay in veriler.items():
                             raf_tablo.append({
                                 "Hammadde": hammadde,
-                                "Miktar (kg)": detay.get("miktar", 0.0),
+                                "Miktar (kg)": round(detay.get("miktar", 0.0), 1), # GÖRSEL FIX
                                 "LOT No": detay.get("lot", "Girilmedi"),
                                 "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
                             })
