@@ -101,7 +101,7 @@ def logout():
     st.session_state.active_menu = "m1"
     st.rerun()
 
-# --- GİRİŞ KONTROLÜ (FORM SUBMIT UYUŞMAZLIĞI DÜZELTİLDİ) ---
+# --- GİRİŞ KONTROLÜ ---
 if not st.session_state.logged_in:
     st.set_page_config(page_title="Giriş - Canlı Depo", layout="centered")
     st.title("🏭 Canlı Depo Yönetim Sistemi")
@@ -110,7 +110,6 @@ if not st.session_state.logged_in:
     with st.form("kesin_giris_formu_blok"):
         username_input = st.text_input("Kullanıcı Adı")
         password_input = st.text_input("Şifre", type="password")
-        # ÇÖZÜM: st.button yerine form ile uyumlu st.form_submit_button kullanıldı
         submit_login = st.form_submit_button("Giriş Yap", use_container_width=True)
         
         if submit_login:
@@ -168,8 +167,7 @@ if st.sidebar.button("📜 Depo Hareket Geçmişi", use_container_width=True):
     st.session_state.active_menu = "m7"
     st.rerun()
 
-# --- AKTİF MENÜ İÇERİKLERİ ---
-
+# --- SENSITIVE DATA LOGIC MASKING ---
 # 1. ARAMA & SORGULAMA
 if st.session_state.active_menu == "m1":
     st.header("🔍 Hammadde veya Raf Ara")
@@ -197,3 +195,44 @@ if st.session_state.active_menu == "m1":
                 st.error(f"❌ Depoda '{arama_kelimesi}' isimli bir hammadde bulunamadı.")
 
     elif arama_turu == "Rafa Göre Ara":
+        secilen_raf = st.selectbox("Sorgulanacak Rafı Seçin:", sorted(list(depo.keys())))
+        st.subheader(f"📍 {secilen_raf} Raf İçeriği")
+        if depo.get(secilen_raf):
+            raf_icerik = []
+            for hammadde, veriler in depo[secilen_raf].items():
+                if isinstance(veriler, dict):
+                    for k_key, detay in veriler.items():
+                        raf_icerik.append({
+                            "Hammadde": hammadde,
+                            "Miktar (kg)": detay.get("miktar", 0),
+                            "LOT No": detay.get("lot", "Girilmedi"),
+                            "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
+                        })
+            if raf_icerik:
+                st.table(raf_icerik)
+            else:
+                st.warning("Boş")
+        else:
+            st.warning("Boş")
+
+# 2. STOK GİRİŞİ
+elif st.session_state.active_menu == "m2":
+    st.header("📥 Rafa Malzeme Girişi")
+    hedef_raf = st.selectbox("Malzemenin Konulacağı Raf:", sorted(list(depo.keys())))
+    
+    st.subheader("📍 Seçilen Rafın Anlık Mevcut İçeriği")
+    mevcut_icerik = []
+    if depo.get(hedef_raf):
+        for hmd, veriler in depo[hedef_raf].items():
+            if isinstance(veriler, dict):
+                for k_key, detay in veriler.items():
+                    mevcut_icerik.append({
+                        "Hammadde": hmd,
+                        "Miktar (kg)": detay.get("miktar", 0),
+                        "LOT No": detay.get("lot", "Girilmedi"),
+                        "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
+                    })
+    if mevcut_icerik:
+        st.table(mevcut_icerik)
+    else:
+        st.info("Bu raf şu an
