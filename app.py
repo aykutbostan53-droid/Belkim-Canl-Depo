@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime
 
-# --- VERİ TABANI AYARLARI (TEMİZ SAYFA) ---
+# --- VERİ TABANI AYARLARI ---
 DB_FILE = "depo_lot_skt_nihai_v1.json"
 
 # Excel'den gelen tüm raf adresleri
@@ -101,20 +101,17 @@ def logout():
     st.session_state.user_display_name = ""
     st.rerun()
 
-# Hafıza çakışmalarını önlemek için dinamik zaman damgası üreteci
-def t_key(base_name):
-    return f"{base_name}_{int(datetime.now().timestamp() * 1000)}"
-
-# --- GİRİŞ EKRANI ARAYÜZÜ ---
+# --- GİRİŞ EKRANI ARAYÜZÜ (SABİT ANAHTARLAR) ---
 if not st.session_state.logged_in:
     st.set_page_config(page_title="Giriş - Canlı Depo", layout="centered")
     st.title("🏭 Canlı Depo Yönetim Sistemi")
     st.subheader("Lütfen Giriş Yapın")
     
-    username = st.text_input("Kullanıcı Adı", key=t_key("login_user"))
-    password = st.text_input("Şifre", type="password", key=t_key("login_pass"))
+    # Kilit Fix: Key isimleri tamamen sabitlendi, sen yazarken asla kaybolmaz
+    username = st.text_input("Kullanıcı Adı", key="sabit_login_username_input")
+    password = st.text_input("Şifre", type="password", key="sabit_login_password_input")
     
-    if st.button("Giriş Yap", use_container_width=True, key=t_key("login_btn")):
+    if st.button("Giriş Yap", use_container_width=True, key="sabit_login_submit_btn"):
         login(username, password)
     st.stop()
 
@@ -126,7 +123,7 @@ with col_title:
     st.title("🏭 Canlı Depo ve Hammadde Takip Sistemi")
 with col_user:
     st.write(f"👤 Giriş Yapan: **{st.session_state.user_display_name}**")
-    if st.button("Çıkış Yap", key=t_key("logout_btn")):
+    if st.button("Çıkış Yap", key="sabit_logout_btn"):
         logout()
 
 st.write("---")
@@ -155,16 +152,16 @@ secilen_key = st.sidebar.radio(
     "Bir işlem seçin:", 
     options=list(menü_secenekleri.keys()), 
     format_func=lambda x: menü_secenekleri[x],
-    key=t_key("sidebar_nav")
+    key="sabit_sidebar_navigation"
 )
 
 # --- 1. ARAMA & SORGULAMA ---
 if secilen_key == "m1":
     st.header("🔍 Hammadde veya Raf Ara")
-    arama_turu = st.radio("Arama Yöntemi:", ["Hammaddeye Göre Ara", "Rafa Göre Ara"], key=t_key("search_type"))
+    arama_turu = st.radio("Arama Yöntemi:", ["Hammaddeye Göre Ara", "Rafa Göre Ara"], key="sabit_search_type")
 
     if arama_turu == "Hammaddeye Göre Ara":
-        arama_kelimesi = st.text_input("Aranacak Hammadde Adı:", key=t_key("search_hmd_input")).strip().upper()
+        arama_kelimesi = st.text_input("Aranacak Hammadde Adı:", key="sabit_search_hmd_input").strip().upper()
         if arama_kelimesi:
             bulundu = False
             sonuclar = []
@@ -186,7 +183,7 @@ if secilen_key == "m1":
                 st.error(f"❌ Depoda '{arama_kelimesi}' isimli bir hammadde bulunamadı.")
 
     elif arama_turu == "Rafa Göre Ara":
-        secilen_raf = st.selectbox("Sorgulanacak Rafı Seçin:", sorted(list(depo.keys())), key=t_key("search_raf_select"))
+        secilen_raf = st.selectbox("Sorgulanacak Rafı Seçin:", sorted(list(depo.keys())), key="sabit_search_raf_select")
         st.subheader(f"📍 {secilen_raf} Raf İçeriği")
         if depo.get(secilen_raf):
             raf_icerik = []
@@ -209,7 +206,7 @@ if secilen_key == "m1":
 # --- 2. STOK GİRİŞİ ---
 elif secilen_key == "m2":
     st.header("📥 Rafa Malzeme Girişi")
-    hedef_raf = st.selectbox("Malzemenin Konulacağı Raf:", sorted(list(depo.keys())), key=t_key("add_shelf_select"))
+    hedef_raf = st.selectbox("Malzemenin Konulacağı Raf:", sorted(list(depo.keys())), key="sabit_add_shelf_select")
     
     st.subheader("📍 Seçilen Rafın Anlık Mevcut İçeriği")
     mevcut_icerik = []
@@ -229,22 +226,22 @@ elif secilen_key == "m2":
         st.info("Bu raf şu an tamamen boş.")
     st.write("---")
 
-    hammadde_adi = st.text_input("Giriş Yapılacak Hammadde Adı:", key=t_key("add_hmd_name")).strip().upper()
-    miktar = st.number_input("Eklenecek Miktar (kg):", min_value=1, step=1, key=t_key("add_qty"))
+    hammadde_adi = st.text_input("Giriş Yapılacak Hammadde Adı:", key="sabit_add_hmd_name").strip().upper()
+    miktar = st.number_input("Eklenecek Miktar (kg):", min_value=1, step=1, key="sabit_add_qty")
     
-    lot_opsiyon = st.checkbox("LOT Numarası Girmek İstiyorum", key=t_key("add_lot_check"))
+    lot_opsiyon = st.checkbox("LOT Numarası Girmek İstiyorum", key="sabit_add_lot_check")
     lot_no = "Girilmedi"
     if lot_opsiyon:
-        lot_no = st.text_input("LOT Numarasını Yazın:", key=t_key("add_lot_text")).strip().upper()
+        lot_no = st.text_input("LOT Numarasını Yazın:", key="sabit_add_lot_text").strip().upper()
         if not lot_no:
             lot_no = "Girilmedi"
             
-    skt_opsiyon = st.checkbox("Son Kullanma Tarihi Girmek İstiyorum", key=t_key("add_skt_check"))
+    skt_opsiyon = st.checkbox("Son Kullanma Tarihi Girmek İstiyorum", key="sabit_add_skt_check")
     skt_tarihi = "Girilmedi"
     if skt_opsiyon:
-        skt_tarihi = st.date_input("Son Kullanma Tarihi Seçin:", min_value=datetime.today(), key=t_key("add_skt_date")).strftime("%Y-%m-%d")
+        skt_tarihi = st.date_input("Son Kullanma Tarihi Seçin:", min_value=datetime.today(), key="sabit_add_skt_date").strftime("%Y-%m-%d")
     
-    if st.button("Stoku Kaydet/Ekle", use_container_width=True, key=t_key("add_submit")):
+    if st.button("Stoku Kaydet/Ekle", use_container_width=True, key="sabit_add_submit"):
         if hammadde_adi:
             if hammadde_adi not in depo[hedef_raf] or not isinstance(depo[hedef_raf][hammadde_adi], dict):
                 depo[hedef_raf][hammadde_adi] = {}
@@ -254,43 +251,4 @@ elif secilen_key == "m2":
             if parti_anahtari in depo[hedef_raf][hammadde_adi]:
                 depo[hedef_raf][hammadde_adi][parti_anahtari]["miktar"] += miktar
             else:
-                depo[hedef_raf][hammadde_adi][parti_anahtari] = {"miktar": miktar, "lot": lot_no, "skt": skt_tarihi}
-            
-            zaman_damgasi = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            log_mesaji = f"📥 GİRİŞ YAPILDI -> {st.session_state.user_display_name} tarafından {hedef_raf} rafına {miktar} kg {hammadde_adi} (LOT: {lot_no} | SKT: {skt_tarihi}) eklendi."
-            gecmis_loglari.insert(0, {"tarih": zaman_damgasi, "islem": log_mesaji})
-            
-            veri_kaydet(data)
-            st.session_state.basari_mesaji = f"✅ İŞLEM BAŞARILI: {hedef_raf} rafına {miktar} kg {hammadde_adi} (LOT: {lot_no}) giriş yapıldı."
-            st.rerun()
-        else:
-            st.error("Lütfen hammadde adı girin.")
-
-# --- 3. STOK SİL / AZALT ---
-elif secilen_key == "m3":
-    st.header("📤 Raftan Malzeme Çıkarma / Azaltma")
-    hedef_raf = st.selectbox("Malzemenin Çıkarılacağı Raf:", sorted(list(depo.keys())), key=t_key("rem_shelf_select"))
-    
-    st.subheader("📍 Seçilen Rafın İçindeki Malzemelerin Listesi")
-    raf_listesi = []
-    if depo.get(hedef_raf) and isinstance(depo[hedef_raf], dict):
-        for hmd, veriler in depo[hedef_raf].items():
-            if isinstance(veriler, dict):
-                for k_key, detay in veriler.items():
-                    raf_listesi.append({
-                        "Hammadde": hmd,
-                        "Miktar (kg)": detay.get("miktar", 0),
-                        "LOT No": detay.get("lot", "Girilmedi"),
-                        "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
-                    })
-    
-    if raf_listesi:
-        st.table(raf_listesi)
-        st.write("---")
-        
-        gecerli_hammadde_listesi = [k for k, v in depo[hedef_raf].items() if isinstance(v, dict) and v]
-        
-        if gecerli_hammadde_listesi:
-            hammadde_adi = st.selectbox("Çıkarılacak Hammaddeyi Seçin:", gecerli_hammadde_listesi, key=t_key("rem_hmd_select"))
-            
-            parti_sec
+                depo[hedef_raf][hammadde_adi][parti_anahtari] = {"miktar": miktar, "lot": lot_no, "skt": sk
