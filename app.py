@@ -76,7 +76,7 @@ if "basari_mesaji" not in st.session_state:
 if "uyari_mesaji" not in st.session_state:
     st.session_state.uyari_mesaji = None
 
-# --- KULLANICI DOĞRULAMA (LOGIN) SİSTEMİ ---
+# --- KULLANICI DOĞRULAMA SİTEMİ ---
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_display_name = ""
@@ -174,43 +174,5 @@ if secilen_key == "m1":
                             sonuclar.append({
                                 "Raf Adresi": raf,
                                 "Miktar (kg)": detay.get("miktar", 0),
-                                "LOT No": detay.get("lot", "Girilmedi"),
-                                "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
-                            })
-                            bulundu = True
-            
-            if bulundu:
-                st.table(sonuclar)
-            else:
-                st.error(f"❌ Depoda '{arama_kelimesi}' isimli bir hammadde bulunamadı.")
-
-    elif arama_turu == "Rafa Göre Ara":
-        secilen_raf = st.selectbox("Sorgulanacak Rafı Seçin:", sorted(list(depo.keys())), key="search_shelf_selectbox")
-        st.subheader(f"📍 {secilen_raf} Raf İçeriği")
-        if depo.get(secilen_raf):
-            raf_icerik = []
-            for hammadde, veriler in depo[secilen_raf].items():
-                if isinstance(veriler, dict):
-                    for k_key, detay in veriler.items():
-                        raf_icerik.append({
-                            "Hammadde": hammadde,
-                            "Miktar (kg)": detay.get("miktar", 0),
-                            "LOT No": detay.get("lot", "Girilmedi"),
-                            "Son Kullanma Tarihi": detay.get("skt", "Girilmedi")
-                        })
-            if raf_icerik:
-                st.table(raf_icerik)
-            else:
-                st.warning("Boş")
-        else:
-            st.warning("Boş")
-
-# --- 2. STOK GİRİŞİ ---
-elif secilen_key == "m2":
-    st.header("📥 Rafa Malzeme Girişi")
-    hedef_raf = st.selectbox("Malzemenin Konulacağı Raf:", sorted(list(depo.keys())), key="add_stock_shelf_select")
-    
-    st.subheader("📍 Seçilen Rafın Anlık Mevcut İçeriği")
-    mevcut_icerik = []
-    if depo.get(hedef_raf):
-        for hmd, veriler in depo
+                                "LOT No": detay.get("lot", "Girilmedi"),  # Güvenli erişim
+                                "Son Kullanma Tarihi": detay.get("s
